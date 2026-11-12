@@ -10,16 +10,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Find project
-        id: p
+      - name: Restore folder structure
         run: |
-          f=$(find . -name settings.gradle -not -path './.git/*' | head -n1)
-          if [ -z "$f" ]; then
-            echo "settings.gradle NOT FOUND. Files in repo:"
-            find . -not -path './.git/*' | head -60
-            exit 1
-          fi
-          echo "dir=$(dirname "$f")" >> "$GITHUB_OUTPUT"
+          J=src/main/java/nelose
+          R=src/main/resources
+          mkdir -p $J $R/assets/nelose/lang $R/assets/nelose/textures/logo
+          for f in *.java; do [ -f "$f" ] && mv "$f" $J/; done
+          [ -f fabric.mod.json ] && mv fabric.mod.json $R/
+          [ -f icon.png ] && mv icon.png $R/assets/nelose/
+          [ -f en_us.json ] && mv en_us.json $R/assets/nelose/lang/
+          for f in cat_*.png haunter_*.png; do [ -f "$f" ] && mv "$f" $R/assets/nelose/textures/logo/; done
+          find . -not -path './.git/*' -type f | sort
 
       - uses: actions/setup-java@v4
         with:
@@ -31,10 +32,15 @@ jobs:
           gradle-version: 9.2.1
 
       - name: Build
-        working-directory: ${{ steps.p.outputs.dir }}
         run: gradle build --no-daemon
+
+      - name: Check jar has fabric.mod.json
+        working-directory: build/libs
+        run: |
+          ls -la
+          unzip -l nelose-1.0.0.jar | grep fabric.mod.json || (echo "NO fabric.mod.json IN JAR" && exit 1)
 
       - uses: actions/upload-artifact@v4
         with:
           name: nelose-mod
-          path: ${{ steps.p.outputs.dir }}/build/libs/*.jar
+          path: build/libs/nelose-1.0.0.jar
