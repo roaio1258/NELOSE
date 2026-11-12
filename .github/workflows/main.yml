@@ -10,6 +10,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Find project
+        id: p
+        run: |
+          f=$(find . -name settings.gradle -not -path './.git/*' | head -n1)
+          if [ -z "$f" ]; then
+            echo "settings.gradle NOT FOUND. Files in repo:"
+            find . -not -path './.git/*' | head -60
+            exit 1
+          fi
+          echo "dir=$(dirname "$f")" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -20,9 +31,10 @@ jobs:
           gradle-version: 9.2.1
 
       - name: Build
+        working-directory: ${{ steps.p.outputs.dir }}
         run: gradle build --no-daemon
 
       - uses: actions/upload-artifact@v4
         with:
           name: nelose-mod
-          path: build/libs/*.jar
+          path: ${{ steps.p.outputs.dir }}/build/libs/*.jar
