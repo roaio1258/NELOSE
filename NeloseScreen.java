@@ -38,11 +38,39 @@ public class NeloseScreen extends Screen {
         }
     }
 
+    /** White-to-blue sheen over a rounded rectangle, drawn in 8 px bands (a per-row gradient was too many quads and made opening laggy). */
+    private static void sheen(DrawContext c, int x, int y, int w, int h, int r, float a) {
+        r = Math.min(r, Math.min(w, h) / 2);
+        int row = 0;
+        while (row < h) {
+            boolean corner = row < r || row >= h - r;
+            int hh = corner ? 1 : Math.max(1, Math.min(8, (h - r) - row));
+            int inset = 0;
+            if (row < r) { double dy = r - row - 0.5; inset = r - (int) Math.round(Math.sqrt(Math.max(0, r * r - dy * dy))); }
+            else if (row >= h - r) { double dy = row - (h - r) + 0.5; inset = r - (int) Math.round(Math.sqrt(Math.max(0, r * r - dy * dy))); }
+            float k = row / (float) Math.max(1, h - 1);
+            c.fill(x + inset, y + row, x + w - inset, y + row + hh, Theme.alpha(Theme.mix(0xFFFFFFFF, 0xFFC8D4EA, k), a));
+            row += hh;
+        }
+    }
+
+    private static final net.minecraft.util.Identifier FROST = net.minecraft.util.Identifier.of("nelose", "textures/gui/frost.png");
+
+    /** Fine frosted-glass grain over the window, tiled from a 128x128 texture. */
+    private static void frost(DrawContext c, int x, int y, int w, int h) {
+        for (int ty = 0; ty < h; ty += 128) {
+            for (int tx = 0; tx < w; tx += 128) {
+                int tw = Math.min(128, w - tx), th = Math.min(128, h - ty);
+                c.drawTexture(net.minecraft.client.gl.RenderPipelines.GUI_TEXTURED, FROST, x + tx, y + ty, 0f, 0f, tw, th, 128, 128);
+            }
+        }
+    }
+
     /** Frosted glass window: soft shadow, dark base for contrast, white sheen, light edge. */
     private static void glass(DrawContext c, int x, int y, int w, int h, int r, float f, boolean strong) {
         Theme.round(c, x + 1, y + 3, w, h, r, Theme.alpha(0xFF000000, 0.18f * f));
         Theme.round(c, x, y, w, h, r, Theme.alpha(GDARK, (strong ? 0.62f : 0.40f) * f));
-        Theme.roundGrad(c, x, y, w, h, r, 0xFFFFFFFF, 0xFFC8D4EA, (strong ? 0.12f : 0.14f) * f);
+        sheen(c, x, y, w, h, r, (strong ? 0.12f : 0.14f) * f);
         outline(c, x, y, w, h, r, Theme.alpha(0xFFFFFFFF, 0.34f * f));
         c.fill(x + r, y + 1, x + w - r, y + 2, Theme.alpha(0xFFFFFFFF, 0.14f * f));
     }
@@ -53,6 +81,8 @@ public class NeloseScreen extends Screen {
         Theme.round(c, x, y, w, h, r, Theme.alpha(Theme.mix(0xFFFFFFFF, tint, on), f * (0.07f + 0.07f * hover + 0.06f * on)));
         outline(c, x, y, w, h, r, Theme.alpha(Theme.mix(0xFFFFFFFF, a1, on * 0.7f), f * (0.20f + 0.12f * hover + 0.25f * on)));
     }
+
+    private final Map<String, List<String>> WRAP = new HashMap<>();
 
     private List<String> wrap(String s, int w, int maxLines) {
         List<String> out = new ArrayList<>();
@@ -388,6 +418,7 @@ public class NeloseScreen extends Screen {
         c.drawCenteredTextWithShadow(textRenderer, tip, width / 2, height - 12, Theme.alpha(GDIM, f * 0.8f));
 
         glass(c, x, y, W, H, 10, f, false);
+        if (f > 0.7f) frost(c, x + 7, y + 7, W - 14, H - 14);
         Theme.gradBar(c, x + 14, y + 2, W - 28, 1, a1, a2, W - 28, f * 0.8f);              // accent line on top
         Theme.gradBar(c, x + 24, y + H - 2, W - 48, 1, a2, a1, W - 48, f * 0.3f);       // and a faint one below
         c.fill(x + SIDE + 8, y + 40, x + W - 10, y + 41, Theme.alpha(0xFFFFFFFF, f * 0.05f));   // header divider
@@ -469,13 +500,13 @@ public class NeloseScreen extends Screen {
     private void card(DrawContext c, Module m, int rx, int ry, int rw, int mx, int my, float f, int a1) {
         boolean hov = mx >= rx && mx <= rx + rw && my >= ry && my <= ry + CH && my >= top() && my <= bottom();
         m.anim += ((m.on ? 1f : 0f) - m.anim) * 0.22f;
-        glassCard(c, rx, ry, rw, CH, 7, hov ? 1f : 0f, m.anim, a1, f);
+        glassCard(c, rx, ry, rw, CH, 5, hov ? 1f : 0f, m.anim, a1, f);
         c.drawTextWithShadow(textRenderer, m.name, rx + 9, ry + 6, Theme.alpha(Theme.TEXT, f));
         if (m.key >= 0) {
             String kn = "[" + Binds.keyName(m.key) + "]";
             c.drawText(textRenderer, kn, rx + 14 + textRenderer.getWidth(m.name), ry + 6, Theme.alpha(a1, f), false);
         }
-        List<String> lines = wrap(m.desc, rw - 18, 2);
+        List<String> lines = WRAP.computeIfAbsent(m.name + "|" + rw, k -> wrap(m.desc, rw - 18, 2));
         for (int k = 0; k < lines.size(); k++)
             c.drawText(textRenderer, lines.get(k), rx + 9, ry + 18 + k * 10, Theme.alpha(GDIM, f * 0.85f), false);
         int sw = 26, sh = 12, sx = rx + rw - sw - 9, sy = ry + 6;
