@@ -79,6 +79,7 @@ public final class Hud {
         for (String[] r : rows) { lw = Math.max(lw, tr.getWidth(r[0])); vw = Math.max(vw, tr.getWidth(r[1])); }
         int w = lw + vw + 22, h = rows.size() * 11 + 7;
         int x = 8, y = Watermark.bottom + 4;
+        HudLayout.begin(c, "info", x, y, w, h);
         Theme.card(c, x, y, w, h, 5, 0xE60B0B0E, Theme.BORDER);
         int ty = y + 4;
         for (String[] r : rows) {
@@ -86,6 +87,7 @@ public final class Hud {
             c.drawTextWithShadow(tr, r[1], x + 15 + lw, ty, Theme.TEXT);
             ty += 11;
         }
+        HudLayout.end(c);
     }
 
     // ---------- module list ----------
@@ -94,7 +96,11 @@ public final class Hud {
         for (Module m : Modules.ALL) if (m.on && m.listed) list.add(m);
         if (Modules.MODULE_LIST.idx("Sort") == 1) list.sort((p, q) -> p.name.compareTo(q.name));
         else list.sort((p, q) -> tr.getWidth(q.name) - tr.getWidth(p.name));
+        if (list.isEmpty()) return;
         int right = mc.getWindow().getScaledWidth() - 6, y = 6;
+        int mw = 0;
+        for (Module m : list) mw = Math.max(mw, tr.getWidth(m.name) + 8);
+        HudLayout.begin(c, "modulelist", right - mw - 2, y, mw + 2, list.size() * 11);
         for (int i = 0; i < list.size(); i++) {
             Module m = list.get(i);
             int w = tr.getWidth(m.name) + 8;
@@ -104,6 +110,7 @@ public final class Hud {
             c.drawTextWithShadow(tr, m.name, right - w, y + 2, col);
             y += 11;
         }
+        HudLayout.end(c);
     }
 
     // ---------- keystrokes ----------
@@ -117,6 +124,7 @@ public final class Hud {
 
         int s = (int) Modules.KEYSTROKES.f("Size"), g = 3;
         int x = 8, y = mc.getWindow().getScaledHeight() / 2 - 40;
+        HudLayout.begin(c, "keystrokes", x, y, 3 * s + 2 * g, 3 * (s + g) + 12);
         key(c, tr, x + s + g, y, s, s, "W", KEY_ANIM[0], a1);
         key(c, tr, x, y + s + g, s, s, "A", KEY_ANIM[1], a1);
         key(c, tr, x + s + g, y + s + g, s, s, "S", KEY_ANIM[2], a1);
@@ -125,6 +133,7 @@ public final class Hud {
         key(c, tr, x, y + 2 * (s + g), bw, s, Modules.KEYSTROKES.b("Show CPS") ? LEFT.size() + " L" : "LMB", KEY_ANIM[5], a1);
         key(c, tr, x + bw + g, y + 2 * (s + g), bw + 1, s, Modules.KEYSTROKES.b("Show CPS") ? RIGHT.size() + " R" : "RMB", KEY_ANIM[6], a1);
         key(c, tr, x, y + 3 * (s + g), 3 * s + 2 * g, 12, "", KEY_ANIM[4], a1);
+        HudLayout.end(c);
     }
 
     private static void key(DrawContext c, TextRenderer tr, int x, int y, int w, int h, String label, float p, int accent) {
@@ -146,16 +155,22 @@ public final class Hud {
             ItemStack st = mc.player.getEquippedStack(s);
             if (!st.isEmpty()) items.add(st);
         }
-        if (items.isEmpty()) return;
+        if (items.isEmpty()) {
+            if (!(mc.currentScreen instanceof NeloseScreen)) return;   // preview while moving widgets
+            items.add(new ItemStack(Items.DIAMOND_HELMET)); items.add(new ItemStack(Items.DIAMOND_CHESTPLATE));
+            items.add(new ItemStack(Items.DIAMOND_LEGGINGS)); items.add(new ItemStack(Items.DIAMOND_BOOTS));
+        }
         int x = mc.getWindow().getScaledWidth() - 26;
         int h = items.size() * 18 + 6;
         int y = mc.getWindow().getScaledHeight() - h - 8;
+        HudLayout.begin(c, "armor", x - 3, y - 3, 24, h);
         Theme.card(c, x - 3, y - 3, 24, h, 5, 0xE60B0B0E, Theme.BORDER);
         for (ItemStack st : items) {
             c.drawItem(st, x, y);
             if (Modules.ARMOR_HUD.b("Durability")) c.drawStackOverlay(tr, st, x, y);
             y += 18;
         }
+        HudLayout.end(c);
     }
 
     // ---------- item counter ----------
@@ -177,6 +192,7 @@ public final class Hud {
         if (sel.isEmpty()) return;
         Item[] items = sel.toArray(new Item[0]);
         int x = 8, y = mc.getWindow().getScaledHeight() - 30;
+        HudLayout.begin(c, "items", x, y, items.length * 34 + 4, 22);
         Theme.card(c, x, y, items.length * 34 + 4, 22, 5, 0xE60B0B0E, Theme.BORDER);
         for (int i = 0; i < items.length; i++) {
             int n = count(mc, items[i]);
@@ -184,17 +200,23 @@ public final class Hud {
             c.drawItem(new ItemStack(items[i]), ix, y + 3);
             c.drawTextWithShadow(tr, String.valueOf(n), ix + 17, y + 8, n == 0 ? Theme.TEXT_DIM : Theme.TEXT);
         }
+        HudLayout.end(c);
     }
 
     // ---------- target hud ----------
     private static void target(DrawContext c, MinecraftClient mc, TextRenderer tr, int a1, int a2) {
-        if (!(mc.targetedEntity instanceof LivingEntity le)) return;
-        String name = le.getName().getString();
-        float hp = le.getHealth(), max = Math.max(1f, le.getMaxHealth());
+        String name; float hp, max, dist;
+        if (mc.targetedEntity instanceof LivingEntity le) {
+            name = le.getName().getString();
+            hp = le.getHealth(); max = Math.max(1f, le.getMaxHealth()); dist = mc.player.distanceTo(le);
+        } else if (mc.currentScreen instanceof NeloseScreen) {   // preview while moving widgets
+            name = "Target"; hp = 20f; max = 20f; dist = 3.5f;
+        } else return;
         String hpText = String.format(Locale.ROOT, "%.1f / %.0f", hp, max)
-            + (Modules.TARGET_HUD.b("Distance") ? String.format(Locale.ROOT, "  %.1fm", mc.player.distanceTo(le)) : "");
+            + (Modules.TARGET_HUD.b("Distance") ? String.format(Locale.ROOT, "  %.1fm", dist) : "");
         int w = Math.max(96, Math.max(tr.getWidth(name), tr.getWidth(hpText)) + 16), h = 30;
         int x = mc.getWindow().getScaledWidth() / 2 + 16, y = mc.getWindow().getScaledHeight() / 2 + 14;
+        HudLayout.begin(c, "target", x, y, w, h);
         Theme.card(c, x, y, w, h, 5, 0xE60B0B0E, Theme.BORDER);
         c.drawTextWithShadow(tr, name, x + 8, y + 6, Theme.TEXT);
         if (Modules.TARGET_HUD.b("Health text")) c.drawText(tr, hpText, x + 8, y + 17, Theme.TEXT_DIM, false);
@@ -202,6 +224,7 @@ public final class Hud {
         c.fill(bx, by, bx + bw, by + 2, 0xFF26262D);
         int fw = (int) (bw * Math.min(1f, hp / max));
         Theme.gradBar(c, bx, by, fw, 2, a1, a2, bw, 1f);
+        HudLayout.end(c);
     }
 
     // ---------- hit marker ----------

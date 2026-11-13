@@ -7,7 +7,7 @@ public final class Modules {
     public static final List<Module> ALL = new ArrayList<>();
 
     private static Module add(String n, String d, Category c, boolean def, boolean listed) {
-        Module m = new Module(n, d, c, def, listed);
+        Module m = new Module(n, d, c, false, listed);   // everything starts switched off
         ALL.add(m);
         return m;
     }
@@ -123,7 +123,7 @@ public final class Modules {
     public static final Module BLUR = add("Interface", "Dim, opening animation and title screen", Category.THEME, true, false)
         .slider("Dim", 0.1, 0.9, 0.55, 0.05)
         .mode("Opening animation", 0, "Default", "Cinematic", "Glass shards", "Random shards")
-        .toggle("Title screen", true).slider("Title snow", 0, 200, 90, 10).toggle("GUI snow", true);
+        .toggle("Title screen", true).slider("Title snow", 0, 200, 90, 10).toggle("GUI snow", true).toggle("Intro", true);
 
     public static List<Module> of(Category c) {
         List<Module> r = new ArrayList<>();

@@ -15,6 +15,7 @@ public final class Config {
 
     public static void save() {
         Properties p = new Properties();
+        p.setProperty("ver", "2");
         p.setProperty("theme", String.valueOf(Theme.preset));
         p.setProperty("season", String.valueOf(Season.current));
         for (Module m : Modules.ALL) {
@@ -27,6 +28,12 @@ public final class Config {
                 p.setProperty(k + "s." + s.name, v);
             }
         }
+        p.setProperty("win.dx", String.valueOf(NeloseScreen.winDX));
+        p.setProperty("win.dy", String.valueOf(NeloseScreen.winDY));
+        for (HudLayout.Item it : HudLayout.ITEMS.values()) {
+            p.setProperty("hud." + it.id + ".dx", String.valueOf(it.dx));
+            p.setProperty("hud." + it.id + ".dy", String.valueOf(it.dy));
+        }
         try (Writer w = Files.newBufferedWriter(file())) { p.store(w, "Nelose"); } catch (IOException ignored) {}
     }
 
@@ -35,13 +42,22 @@ public final class Config {
         if (!Files.exists(f)) return;
         Properties p = new Properties();
         try (Reader r = Files.newBufferedReader(f)) { p.load(r); } catch (IOException e) { return; }
+        boolean fresh = !"2".equals(p.getProperty("ver"));
         try {
             Theme.preset = Integer.parseInt(p.getProperty("theme", String.valueOf(Theme.preset)));
             Season.current = Math.max(0, Math.min(Season.NAMES.length - 1,
                 Integer.parseInt(p.getProperty("season", String.valueOf(Season.current)))));
+            NeloseScreen.winDX = Float.parseFloat(p.getProperty("win.dx", "0"));
+            NeloseScreen.winDY = Float.parseFloat(p.getProperty("win.dy", "0"));
+            for (String id : new String[]{"watermark", "info", "modulelist", "keystrokes", "armor", "items", "target"}) {
+                HudLayout.Item it = HudLayout.get(id);
+                it.dx = Float.parseFloat(p.getProperty("hud." + id + ".dx", "0"));
+                it.dy = Float.parseFloat(p.getProperty("hud." + id + ".dy", "0"));
+            }
             for (Module m : Modules.ALL) {
                 String k = "m." + m.name + ".";
-                m.on = Boolean.parseBoolean(p.getProperty(k + "on", String.valueOf(m.on)));
+                // configs from before version 2 had modules switched on: start from all off
+                m.on = fresh ? false : Boolean.parseBoolean(p.getProperty(k + "on", String.valueOf(m.on)));
                 m.anim = m.on ? 1f : 0f;
                 m.key = Integer.parseInt(p.getProperty(k + "key", String.valueOf(m.key)));
                 m.bindMode = Integer.parseInt(p.getProperty(k + "bind", String.valueOf(m.bindMode)));

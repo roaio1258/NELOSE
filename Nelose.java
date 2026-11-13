@@ -44,7 +44,10 @@ public class Nelose implements ClientModInitializer {
 
         // replace the vanilla main menu with ours
         ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
-            if (screen instanceof TitleScreen && Modules.BLUR.b("Title screen")) client.setScreen(new NeloseTitleScreen());
+            if (screen instanceof TitleScreen) {
+                if (IntroScreen.wanted()) client.setScreen(new IntroScreen());
+                else if (Modules.BLUR.b("Title screen")) client.setScreen(new NeloseTitleScreen());
+            }
         });
 
         // hide the vanilla crosshair while the custom one is enabled
