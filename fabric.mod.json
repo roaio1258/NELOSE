@@ -6,6 +6,7 @@
   "description": "Nelose - black visuals, HUD, effects and quality of life modules",
   "environment": "client",
   "icon": "assets/nelose/icon.png",
+  "mixins": ["nelose.mixins.json"],
   "entrypoints": { "client": ["nelose.Nelose"] },
   "depends": { "fabricloader": ">=0.16.0", "minecraft": "~1.21.11", "java": ">=21", "fabric-api": "*" }
 }

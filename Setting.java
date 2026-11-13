@@ -12,6 +12,8 @@ public final class Setting {
     public boolean on;
     public double value, min, max, step;
     public float anim;   // switch animation
+    public String depName;   // shown only when this mode setting has one of depVals
+    public int[] depVals;
 
     private Setting(String n, boolean toggle) { name = n; isToggle = toggle; }
 

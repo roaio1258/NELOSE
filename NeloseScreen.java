@@ -161,7 +161,7 @@ public class NeloseScreen extends Screen {
 
     private static int panelH(Panel p) {
         int h = PHEAD + PPAD + PPAD + 40;   // +40: bind rows
-        for (Setting s : p.m.settings) h += rowH(s);
+        for (Setting s : p.m.settings) if (p.m.visible(s)) h += rowH(s);
         return h;
     }
 
@@ -227,13 +227,12 @@ public class NeloseScreen extends Screen {
         boolean hovX = mx >= xx - 3 && mx <= xx + 9 && my >= xy - 3 && my <= xy + 9;
         int xc = Theme.alpha(hovX ? 0xFFFFFFFF : Theme.TEXT_DIM, pa);
         for (int i = 0; i < 7; i++) { c.fill(xx + i, xy + i, xx + i + 1, xy + i + 1, xc); c.fill(xx + 6 - i, xy + i, xx + 7 - i, xy + i + 1, xc); }
-        for (int i = 0; i < PW - 16; i++) {
-            c.fill(px + 8 + i, py + PHEAD - 1, px + 9 + i, py + PHEAD, Theme.alpha(Theme.mix(a1, a2, i / (float) (PW - 16)), pa * 0.9f));
-        }
+        Theme.gradBar(c, px + 8, py + PHEAD - 1, PW - 16, 1, a1, a2, PW - 16, pa * 0.9f);
 
         // settings
         int ry = py + PHEAD + PPAD;
         for (Setting s : p.m.settings) {
+            if (!p.m.visible(s)) continue;
             if (s.isToggle) {
                 s.anim += ((s.on ? 1f : 0f) - s.anim) * 0.25f;
                 c.drawTextWithShadow(textRenderer, s.name, px + PPAD + 1, ry + 6, Theme.alpha(Theme.TEXT, pa));
@@ -252,9 +251,7 @@ public class NeloseScreen extends Screen {
                 boolean act = activeSlider == s;
                 Theme.round(c, tx, ty, tw, 4, 2, Theme.alpha(0xFF26262D, pa));
                 int fw = Math.max(3, (int) (tw * s.fraction()));
-                for (int i = 0; i < fw; i++) {
-                    c.fill(tx + i, ty + 1, tx + i + 1, ty + 3, Theme.alpha(Theme.mix(a1, a2, i / (float) tw), pa));
-                }
+                Theme.gradBar(c, tx, ty + 1, fw, 2, a1, a2, tw, pa);
                 int kr = act ? 5 : 4;
                 Theme.round(c, tx + fw - kr, ty + 2 - kr, kr * 2, kr * 2, kr, Theme.alpha(0xFFFFFFFF, pa));
             }
@@ -304,8 +301,11 @@ public class NeloseScreen extends Screen {
         }
         panels.removeIf(p -> p.closing && p.open < 0.02f);
 
-        Theme.glow(c, x, y, W, H, 8, a1, 8);
+        Theme.glow(c, x, y, W, H, 8, a1, 5);
         Theme.card(c, x, y, W, H, 8, Theme.alpha(Theme.BG, f), Theme.alpha(Theme.BORDER, f));
+        Theme.gradBar(c, x + 12, y + 1, W - 24, 1, a1, a2, W - 24, f);                  // accent line on top
+        Theme.gradBar(c, x + 24, y + H - 2, W - 48, 1, a2, a1, W - 48, f * 0.3f);       // and a faint one below
+        c.fill(x + SIDE + 8, y + 40, x + W - 10, y + 41, Theme.alpha(0xFFFFFFFF, f * 0.05f));   // header divider
 
         // sidebar
         Theme.round(c, x + 1, y + 1, SIDE, H - 2, 7, Theme.alpha(Theme.PANEL, f));
@@ -313,10 +313,7 @@ public class NeloseScreen extends Screen {
         Avatar.draw(c, x + SIDE / 2, y + 34, 18, f);
         int nw = textRenderer.getWidth("Nelose");
         c.drawTextWithShadow(textRenderer, "Nelose", x + (SIDE - nw) / 2, y + 60, Theme.alpha(Theme.TEXT, f));
-        for (int i = 0; i < nw; i++) {
-            c.fill(x + (SIDE - nw) / 2 + i, y + 71, x + (SIDE - nw) / 2 + i + 1, y + 72,
-                Theme.alpha(Theme.mix(a1, a2, i / (float) nw), f));
-        }
+        Theme.gradBar(c, x + (SIDE - nw) / 2, y + 71, nw, 1, a1, a2, nw, f);
 
         // tabs on the side with a sliding highlight
         int hy = slotY(tabPos);
@@ -331,7 +328,7 @@ public class NeloseScreen extends Screen {
             c.drawTextWithShadow(textRenderer, cat.title, x + 20 + (sel ? 2 : 0), ty + 7,
                 Theme.alpha(sel ? Theme.TEXT : (hov ? 0xFFC8C8D2 : Theme.TEXT_DIM), f));
         }
-        c.drawTextWithShadow(textRenderer, "v1.4 · 1.21.11", x + 14, y + H - 18, Theme.alpha(Theme.TEXT_DIM, f));
+        c.drawTextWithShadow(textRenderer, "v1.5 · 1.21.11", x + 14, y + H - 18, Theme.alpha(Theme.TEXT_DIM, f));
 
         // header
         int cx = cx(), cw = cw();
@@ -386,6 +383,7 @@ public class NeloseScreen extends Screen {
         m.anim += ((m.on ? 1f : 0f) - m.anim) * 0.22f;
         Theme.card(c, rx, ry, rw, ROW, 5, Theme.alpha(hov ? Theme.CARD_HOV : Theme.CARD, f),
             Theme.alpha(Theme.mix(Theme.BORDER, a1, m.anim * 0.35f), f));
+        if (m.anim > 0.05f) Theme.round(c, rx + 1, ry + 7, 2, ROW - 14, 1, Theme.alpha(a1, f * m.anim));   // enabled marker
         c.drawTextWithShadow(textRenderer, m.name, rx + 9, ry + 5, Theme.alpha(Theme.TEXT, f));
         c.drawText(textRenderer, m.desc, rx + 9, ry + 16, Theme.alpha(Theme.TEXT_DIM, f), false);
         int sw = 26, sh = 12, sx = rx + rw - sw - 9, sy = ry + (ROW - sh) / 2;
@@ -434,6 +432,7 @@ public class NeloseScreen extends Screen {
     private static final int MH = 62;
 
     private int modelRowY() { return top() + slide() + 14 + MH + 10; }
+    private int accountY() { return modelRowY() + ROW + 24; }
 
     private void renderSettings(DrawContext c, int mx, int my, float f, int a1) {
         int cx = cx(), cw = cw(), top = top() + slide();
@@ -449,6 +448,11 @@ public class NeloseScreen extends Screen {
         }
         row(c, Modules.LOGO, cx, modelRowY(), cw, mx, my, f, a1);
         c.drawText(textRenderer, "Gear: animation, blizzard, glow", cx, modelRowY() + ROW + 6, Theme.alpha(Theme.TEXT_DIM, f * 0.8f), false);
+        int ay = accountY();
+        boolean ah = mx >= cx && mx <= cx + cw && my >= ay && my <= ay + ROW;
+        Theme.card(c, cx, ay, cw, ROW, 6, Theme.alpha(ah ? Theme.CARD_HOV : Theme.CARD, f), Theme.alpha(ah ? a1 : Theme.BORDER, f));
+        c.drawTextWithShadow(textRenderer, "Account: " + Accounts.current(client), cx + 9, ay + 10, Theme.alpha(Theme.TEXT, f));
+        c.drawText(textRenderer, ">", cx + cw - 14, ay + 10, Theme.alpha(a1, f), false);
     }
 
     // ---------- input ----------
@@ -501,6 +505,7 @@ public class NeloseScreen extends Screen {
             }
             int ry = Math.round(p.y) + PHEAD + PPAD;
             for (Setting s : p.m.settings) {
+                if (!p.m.visible(s)) continue;
                 int rh = rowH(s);
                 if (my >= ry - 2 && my < ry + rh) {
                     if (s.isToggle) s.on = !s.on;
@@ -537,6 +542,8 @@ public class NeloseScreen extends Screen {
                     if (mx >= sx && mx <= sx + gw && my >= sy && my <= sy + MH) { Modules.LOGO.setIdx("Model", i); return true; }
                 }
             }
+            int ay = accountY();
+            if (btn == 0 && mx >= cx && mx <= cx + cw && my >= ay && my <= ay + ROW) { client.setScreen(new AccountScreen()); return true; }
             int ry = modelRowY();
             if (mx >= cx && mx <= cx + cw && my >= ry && my <= ry + ROW) {
                 if (btn == 1 || (btn == 0 && onGear(Modules.LOGO, cx, cw, mx))) togglePanel(Modules.LOGO, ry);

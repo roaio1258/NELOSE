@@ -15,18 +15,26 @@ public final class Modules {
     // Visuals
     public static final Module FULLBRIGHT = add("Fullbright", "See clearly in the dark", Category.VISUALS, false, true);
     public static final Module ZOOM = add("Zoom", "Hold C to zoom in", Category.VISUALS, true, true)
-        .slider("Zoom FOV", 30, 80, 30, 1).slider("Smoothness", 0.1, 0.6, 0.35, 0.01);
+        .slider("Zoom FOV", 15, 80, 30, 1).slider("Smoothness", 0.1, 0.6, 0.35, 0.01);
     public static final Module TARGET_HUD = add("Target HUD", "Health of the mob you look at", Category.VISUALS, true, true)
         .toggle("Health text", true).toggle("Distance", false);
     public static final Module ARMOR_HUD = add("Armor HUD", "Armor and durability on screen", Category.VISUALS, true, true)
         .toggle("Durability", true);
     public static final Module TARGET_ESP = add("Target ESP", "Animated effect around your target", Category.VISUALS, true, true)
-        .mode("Mode", 0, "Ring", "Katanas", "Scan")
-        .slider("Radius", 0.5, 2.0, 1.0, 0.05).slider("Speed", 0.5, 3.0, 1.0, 0.1)
-        .slider("Trail", 1, 8, 5, 1).toggle("Orbit dots", true)
-        .slider("Katana speed", 0.5, 3.0, 1.0, 0.1)
-        .slider("Scan speed", 0.5, 3.0, 1.0, 0.1).slider("Scan trail", 1, 10, 5, 1)
-        .slider("Scan waves", 1, 4, 2, 1).toggle("Scan outline", true);
+        .mode("Mode", 0, "Ring", "Katanas", "Scan", "Lightning", "Storm", "Helix", "Shockwave", "Halo", "Orbs")
+        .slider("Radius", 0.5, 2.0, 1.0, 0.05).when("Mode", 0, 1, 5, 6, 7, 8)
+        .slider("Speed", 0.5, 3.0, 1.0, 0.1).when("Mode", 0, 5, 6, 7, 8)
+        .slider("Trail", 1, 8, 5, 1).when("Mode", 0)
+        .toggle("Orbit dots", true).when("Mode", 0)
+        .slider("Katana speed", 0.5, 3.0, 1.0, 0.1).when("Mode", 1)
+        .slider("Scan speed", 0.5, 3.0, 1.0, 0.1).when("Mode", 2)
+        .slider("Scan trail", 1, 10, 5, 1).when("Mode", 2)
+        .slider("Scan waves", 1, 4, 2, 1).when("Mode", 2)
+        .toggle("Scan outline", true).when("Mode", 2)
+        .slider("Bolts", 1, 5, 2, 1).when("Mode", 3, 4)
+        .slider("Bolt rate", 0.5, 3.0, 1.2, 0.1).when("Mode", 3, 4)
+        .toggle("Hit lightning", true)
+        .mode("Quality", 1, "Low", "Medium", "High");
     public static final Module TARGET_BOX = add("Target box", "Corner box with a health bar", Category.VISUALS, false, true)
         .slider("Corner size", 4, 18, 10, 1).toggle("Health bar", true);
     public static final Module GLASS_ESP = add("Glass ESP", "Tinted glass box on your target", Category.VISUALS, false, true)
@@ -84,6 +92,10 @@ public final class Modules {
         .slider("Delay", 0, 40, 0, 1);
     public static final Module LOW_HP = add("Low health glow", "Red edges when health is low", Category.PLAYER, true, false)
         .slider("Threshold", 2, 10, 6, 1);
+    public static final Module FAKE_PLAYER = add("Fake Player", "Client-side dummy to test your effects on", Category.PLAYER, false, true)
+        .mode("Name", 0, "Dummy", "Steve", "Bot", "Target")
+        .slider("Count", 1, 5, 1, 1).slider("Distance", 1.5, 6, 3, 0.5)
+        .toggle("Copy gear", true).toggle("Face you", true);
     public static final Module ITEM_COUNTER = add("Item counter", "Totems, gapples, pearls, crystals", Category.PLAYER, true, true)
         .toggle("Totem", true).toggle("Gapple", true).toggle("Pearl", true).toggle("Crystal", true);
 

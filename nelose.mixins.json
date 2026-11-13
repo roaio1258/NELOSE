@@ -1,0 +1,9 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "nelose.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "refmap": "nelose-refmap.json",
+  "client": ["GameRendererMixin"],
+  "injectors": { "defaultRequire": 0 }
+}

@@ -34,6 +34,20 @@ public final class Module {
         return this;
     }
 
+    /** The last added setting is only shown while the mode setting `mode` is one of `vals`. */
+    public Module when(String mode, int... vals) {
+        Setting s = settings.get(settings.size() - 1);
+        s.depName = mode; s.depVals = vals;
+        return this;
+    }
+
+    public boolean visible(Setting s) {
+        if (s.depName == null) return true;
+        int i = idx(s.depName);
+        for (int v : s.depVals) if (v == i) return true;
+        return false;
+    }
+
     public int idx(String n) { return find(n).index; }
 
     private Setting find(String n) {

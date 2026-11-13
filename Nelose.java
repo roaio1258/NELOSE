@@ -1,6 +1,7 @@
 package nelose;
 
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
@@ -21,6 +22,8 @@ public class Nelose implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         Config.load();
+        Accounts.load();
+        ClientLifecycleEvents.CLIENT_STARTED.register(Accounts::applyOnStart);
         KeyBinding.Category cat = KeyBinding.Category.create(Identifier.of("nelose", "main"));
         openKey = KeyBindingHelper.registerKeyBinding(
             new KeyBinding("key.nelose.open", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_RIGHT_SHIFT, cat));
@@ -48,6 +51,7 @@ public class Nelose implements ClientModInitializer {
 
         AttackEntityCallback.EVENT.register((player, world, hand, entity, hit) -> {
             if (world.isClient()) Features.onAttack(entity);
+            if (FakePlayer.isFake(entity)) return ActionResult.FAIL;   // client-only, nothing is sent
             return ActionResult.PASS;
         });
 

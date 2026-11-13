@@ -201,7 +201,7 @@ public final class Hud {
         int bx = x + 8, by = y + h - 6, bw = w - 16;
         c.fill(bx, by, bx + bw, by + 2, 0xFF26262D);
         int fw = (int) (bw * Math.min(1f, hp / max));
-        for (int i = 0; i < fw; i++) c.fill(bx + i, by, bx + i + 1, by + 2, Theme.mix(a1, a2, i / (float) bw));
+        Theme.gradBar(c, bx, by, fw, 2, a1, a2, bw, 1f);
     }
 
     // ---------- hit marker ----------
@@ -300,7 +300,7 @@ public final class Hud {
         if (Modules.HEALTH_INDICATOR.b("Show name")) c.drawCenteredTextWithShadow(tr, le.getName().getString(), cx, cy - 11, Theme.TEXT);
         c.fill(x - 1, cy - 1, x + w + 1, cy + 4, 0xC00B0B0E);
         int fw = (int) (w * k);
-        for (int i = 0; i < fw; i++) c.fill(x + i, cy, x + i + 1, cy + 3, Theme.mix(a1, a2, i / (float) w));
+        Theme.gradBar(c, x, cy, fw, 3, a1, a2, w, 1f);
     }
 
     // ---------- mace helper ----------

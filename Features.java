@@ -39,7 +39,7 @@ public final class Features {
     private static double curFov;
 
     public static void tick(MinecraftClient mc) {
-        if (mc.player == null || mc.world == null) { hasLast = false; return; }
+        if (mc.player == null || mc.world == null) { hasLast = false; FakePlayer.clear(); return; }
 
         // speed in blocks per second (smoothed)
         double x = mc.player.getX(), z = mc.player.getZ();
@@ -88,8 +88,13 @@ public final class Features {
         atmosphere(mc);
         keys(mc);
         mace(mc);
+        FakePlayer.tick(mc);
 
-        // Smooth zoom
+        // Smooth zoom is done per frame in Zoom (render hook); this tick version is only a fallback
+        if (!Zoom.hooked) zoomFallback(mc);
+    }
+
+    private static void zoomFallback(MinecraftClient mc) {
         boolean want = Modules.ZOOM.on && zoomKey != null && zoomKey.isPressed() && mc.currentScreen == null;
         if (want && !zooming) {
             savedFov = mc.options.getFov().getValue();
@@ -114,6 +119,7 @@ public final class Features {
         target = e;
         targetTime = hitTime = System.currentTimeMillis();
         killDone = false;
+        FakePlayer.onHit(e);
         hitSound(mc);
         if (Modules.HIT_PARTICLES.on) {
             ThreadLocalRandom r = ThreadLocalRandom.current();

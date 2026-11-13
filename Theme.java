@@ -53,10 +53,38 @@ public final class Theme {
         c.fill(x, y + r, x + w, y + h - r, col);
     }
 
+    /** Rounded rectangle with a vertical gradient from `top` to `bot`, both opaque RGB. */
+    public static void roundGrad(DrawContext c, int x, int y, int w, int h, int r, int top, int bot, float a) {
+        r = Math.min(r, Math.min(w, h) / 2);
+        for (int row = 0; row < h; row++) {
+            int inset = 0;
+            if (row < r) {
+                double dy = r - row - 0.5;
+                inset = r - (int) Math.round(Math.sqrt(Math.max(0, r * r - dy * dy)));
+            } else if (row >= h - r) {
+                double dy = row - (h - r) + 0.5;
+                inset = r - (int) Math.round(Math.sqrt(Math.max(0, r * r - dy * dy)));
+            }
+            c.fill(x + inset, y + row, x + w - inset, y + row + 1, alpha(mix(top, bot, row / (float) Math.max(1, h - 1)), a));
+        }
+    }
+
     /** Rounded card with 1px border. */
     public static void card(DrawContext c, int x, int y, int w, int h, int r, int fill, int border) {
         round(c, x, y, w, h, r, border);
         round(c, x + 1, y + 1, w - 2, h - 2, Math.max(0, r - 1), fill);
+    }
+
+    /** Horizontal gradient drawn in a few wide segments instead of one fill per pixel. */
+    public static void gradBar(DrawContext c, int x, int y, int w, int h, int c1, int c2, int total, float a) {
+        if (w <= 0) return;
+        int seg = Math.max(1, Math.min(w, 20));
+        float tot = Math.max(1, total);
+        for (int i = 0; i < seg; i++) {
+            int x1 = x + w * i / seg, x2 = x + w * (i + 1) / seg;
+            if (x2 <= x1) continue;
+            c.fill(x1, y, x2, y + h, alpha(mix(c1, c2, Math.min(1f, (x1 + x2 - 2 * x) / 2f / tot)), a));
+        }
     }
 
     /** Soft glow around a box. */

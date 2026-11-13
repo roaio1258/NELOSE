@@ -16,6 +16,7 @@ public final class Config {
     public static void save() {
         Properties p = new Properties();
         p.setProperty("theme", String.valueOf(Theme.preset));
+        p.setProperty("season", String.valueOf(Season.current));
         for (Module m : Modules.ALL) {
             String k = "m." + m.name + ".";
             p.setProperty(k + "on", String.valueOf(m.on));
@@ -36,6 +37,8 @@ public final class Config {
         try (Reader r = Files.newBufferedReader(f)) { p.load(r); } catch (IOException e) { return; }
         try {
             Theme.preset = Integer.parseInt(p.getProperty("theme", String.valueOf(Theme.preset)));
+            Season.current = Math.max(0, Math.min(Season.NAMES.length - 1,
+                Integer.parseInt(p.getProperty("season", String.valueOf(Season.current)))));
             for (Module m : Modules.ALL) {
                 String k = "m." + m.name + ".";
                 m.on = Boolean.parseBoolean(p.getProperty(k + "on", String.valueOf(m.on)));
