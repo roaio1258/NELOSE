@@ -5,9 +5,11 @@ import net.minecraft.client.gui.DrawContext;
 /** Animated Nelose logo: comet ring, pulsing glow, orbiting dots and an "N". */
 public final class Avatar {
     private static void disc(DrawContext c, int cx, int cy, int r, int col) {
-        for (int dy = -r; dy <= r; dy++) {
-            int half = (int) Math.round(Math.sqrt(Math.max(0, r * r - dy * dy)));
-            c.fill(cx - half, cy + dy, cx + half + 1, cy + dy + 1, col);
+        int st = r >= 26 ? 3 : r >= 10 ? 2 : 1;
+        for (int dy = -r; dy <= r; dy += st) {
+            int m = Math.min(r, dy + st / 2);
+            int half = (int) (Math.sqrt(Math.max(0, r * r - m * m)) + 0.5);
+            c.fill(cx - half, cy + dy, cx + half + 1, cy + Math.min(r + 1, dy + st), col);
         }
     }
 

@@ -24,6 +24,7 @@ public class Nelose implements ClientModInitializer {
         Config.load();
         Accounts.load();
         ClientLifecycleEvents.CLIENT_STARTED.register(Accounts::applyOnStart);
+        ClientLifecycleEvents.CLIENT_STARTED.register(SplashHook::tryWrap);
         KeyBinding.Category cat = KeyBinding.Category.create(Identifier.of("nelose", "main"));
         openKey = KeyBindingHelper.registerKeyBinding(
             new KeyBinding("key.nelose.open", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_RIGHT_SHIFT, cat));
@@ -56,6 +57,7 @@ public class Nelose implements ClientModInitializer {
         });
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            SplashHook.tryWrap(client);
             Features.tick(client);
             Binds.tick(client);
             while (openKey.wasPressed()) {

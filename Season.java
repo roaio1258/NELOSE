@@ -32,12 +32,18 @@ public final class Season {
     /** Color of the small version texts at the bottom. */
     public static int footer() { return current == WINTER ? 0xFFEAF2FF : 0xFFE6E6EC; }
 
-    private static void disc(DrawContext c, int cx, int cy, int r, int col) {
-        for (int dy = -r; dy <= r; dy++) {
-            int half = (int) Math.round(Math.sqrt(Math.max(0, r * r - dy * dy)));
-            c.fill(cx - half, cy + dy, cx + half + 1, cy + dy + 1, col);
+    /** Filled circle. Big circles are drawn in 2-3 px bands, which is much cheaper and looks the same at this scale. */
+    static void disc(DrawContext c, int cx, int cy, int r, int col) {
+        if (((col >>> 24) & 0xFF) == 0) return;
+        int st = r >= 26 ? 3 : r >= 10 ? 2 : 1;
+        for (int dy = -r; dy <= r; dy += st) {
+            int m = Math.min(r, dy + st / 2);
+            int half = (int) (Math.sqrt(Math.max(0, r * r - m * m)) + 0.5);
+            c.fill(cx - half, cy + dy, cx + half + 1, cy + Math.min(r + 1, dy + st), col);
         }
     }
+
+    private static int screenW = 10000;   // set by sky(), used to skip off-screen clouds
 
     private static double time() { return System.currentTimeMillis() / 1000.0; }
 
@@ -73,6 +79,7 @@ public final class Season {
 
     /** A cumulus built from overlapping puffs, so it has real volume. */
     private static void cloud(DrawContext c, int x, int y, int n, int rmin, int rmax, int base, float f, float fl) {
+        if (x > screenW + rmax || x + (int) (n * (rmin + rmax) * 0.7) + rmax < 0) return;   // off screen
         for (int p = 0; p < n; p++) {
             int px = x + (int) (p * (rmin + rmax) * 0.7);
             int py = y + (int) Math.round(Math.sin(p * 1.9 + x * 0.05) * rmin * 0.6);
@@ -89,21 +96,20 @@ public final class Season {
         int[][] cols = {{0xFF4DFFB0, 0xFF3AA0FF}, {0xFFA78BFA, 0xFF60A5FA}, {0xFF34D399, 0xFF22D3EE}};
         for (int r = 0; r < 3; r++) {
             double base = h * (0.15 + 0.08 * r);
-            for (int x = 0; x < w; x += 4) {
+            for (int x = 0; x < w; x += 6) {
                 int y = (int) (base + Math.sin(x * 0.011 + t * 0.35 + r * 2.1) * h * 0.05 + Math.sin(x * 0.029 + t * 0.6 + r) * h * 0.015);
                 float sh = (float) (0.5 + 0.5 * Math.sin(x * 0.04 + t * 1.3 + r * 3));
                 float ray = (float) (0.65 + 0.35 * Math.sin(x * 0.31 + t * 2 + r));   // vertical rays inside the curtain
-                int len = 6 + (int) (4 * sh);
-                for (int j = 0; j < len; j++) {
-                    float a = 0.11f * sh * ray * (1f - j / (float) len) * f * (r == 2 ? 0.6f : 1f);
-                    c.fill(x, y + j * 3, x + 4, y + j * 3 + 3, Theme.alpha(Theme.mix(cols[r][0], cols[r][1], j / (float) len), a));
-                }
+                int len = 22 + (int) (14 * sh);
+                float a = 0.20f * sh * ray * f * (r == 2 ? 0.6f : 1f);
+                c.fillGradient(x, y, x + 6, y + len, Theme.alpha(cols[r][0], a), Theme.alpha(cols[r][1], 0f));
             }
         }
     }
 
     private static void winterSnow(DrawContext c, int w, int h, int count, float a) {
         if (count <= 0) return;
+        count = Math.min(count, 90);
         double t = time();
         int ww = Math.max(1, w);
         for (int i = 0; i < count; i++) {
@@ -136,14 +142,14 @@ public final class Season {
 
     /** Jagged snowy mountain range: dark body with a bright snow cap on the high points. */
     private static void mountain(DrawContext c, int w, int base, double amp, double freq, double phase, int body, float f) {
-        for (int x = 0; x < w; x += 2) {
+        for (int x = 0; x < w; x += 4) {
             double ridge = Math.abs(Math.sin(x * freq + phase)) * 0.62 + Math.abs(Math.sin(x * freq * 2.7 + phase * 1.3)) * 0.38;
             int hy = (int) (base - amp * (0.25 + 0.75 * ridge));
-            c.fill(x, hy, x + 2, base + 2, Theme.alpha(body, f));
+            c.fill(x, hy, x + 4, base + 2, Theme.alpha(body, f));
             if (ridge > 0.55) {
                 int cap = 1 + (int) ((ridge - 0.55) * amp * 0.9);
-                c.fill(x, hy, x + 2, hy + cap, Theme.alpha(0xFFE3F0FF, f * 0.85f));
-                c.fill(x, hy + cap, x + 2, hy + cap + 1, Theme.alpha(0xFFAFCDEE, f * 0.45f));
+                c.fill(x, hy, x + 4, hy + cap, Theme.alpha(0xFFE3F0FF, f * 0.85f));
+                c.fill(x, hy + cap, x + 4, hy + cap + 1, Theme.alpha(0xFFAFCDEE, f * 0.45f));
             }
         }
     }
@@ -197,23 +203,23 @@ public final class Season {
     // ---------------------------------------------------------------- sky
 
     public static void sky(DrawContext c, int w, int h) {
-        for (int y = 0; y < h; y++) {
-            c.fill(0, y, w, y + 1, Theme.mix(SKY_TOP[current], SKY_BOT[current], y / (float) h));
-        }
+        screenW = w;
+        c.fillGradient(0, 0, w, h, SKY_TOP[current], SKY_BOT[current]);
         // glow along the horizon
         int top = h - h / 7, span = Math.max(20, h / 4);
-        for (int i = 0; i < span; i++) {
-            float k = 1f - i / (float) span;
-            c.fill(0, top - i - 1, w, top - i, Theme.alpha(HORIZON[current], HORIZON_A[current] * k * k));
-        }
+        c.fillGradient(0, top - span, w, top, Theme.alpha(HORIZON[current], 0f), Theme.alpha(HORIZON[current], HORIZON_A[current]));
     }
+
+    /** Sky colours, used by the loading screen. */
+    public static int skyTop() { return SKY_TOP[current]; }
+    public static int skyBot() { return SKY_BOT[current]; }
 
     // ---------------------------------------------------------------- silhouettes
 
     private static void hill(DrawContext c, int w, int base, double amp, double freq, double phase, int col, float f) {
-        for (int x = 0; x < w; x += 2) {
+        for (int x = 0; x < w; x += 4) {
             int hy = (int) (base - amp * 0.5 - amp * 0.5 * Math.sin(x * freq + phase) - amp * 0.25 * Math.sin(x * freq * 2.3 + phase * 1.7));
-            c.fill(x, hy, x + 2, base + 2, Theme.alpha(col, f));
+            c.fill(x, hy, x + 4, base + 2, Theme.alpha(col, f));
         }
     }
 
@@ -269,17 +275,17 @@ public final class Season {
             double t = time();
             hill(c, w, top, 22, 0.012, 0.8, 0xFF1B2420, f);
             int y0 = funnelTop(h), n = top - y0;
-            for (int r = 0; r < n; r++) {       // the funnel, shaded like a cylinder with a turbulent edge
+            for (int r = 0; r < n; r += 2) {       // the funnel, shaded like a cylinder with a turbulent edge
                 double k = r / (double) n;
                 int half = funnelHalf(k) + (int) Math.round(Math.sin(r * 0.35 - t * 4) * 1.5 * (1 - k));
                 int cx = funnelX(w, k, t), y = y0 + r, x0 = cx - half, fw = half * 2 + 1;
                 float wave = (float) (0.5 + 0.5 * Math.sin(r * 0.55 - t * 9));
                 for (int b = 0; b < 4; b++) {
                     float shade = Math.max(0f, Math.min(1f, 0.62f - 0.2f * b + 0.22f * wave));
-                    c.fill(x0 + fw * b / 4, y, x0 + fw * (b + 1) / 4, y + 1, Theme.alpha(Theme.mix(0xFF161C20, 0xFF727F85, shade), f * 0.96f));
+                    c.fill(x0 + fw * b / 4, y, x0 + fw * (b + 1) / 4, y + 2, Theme.alpha(Theme.mix(0xFF161C20, 0xFF727F85, shade), f * 0.96f));
                 }
-                c.fill(x0 - 1, y, x0 + 1, y + 1, Theme.alpha(0xFF0B0F11, f * 0.7f));
-                c.fill(x0 + fw - 1, y, x0 + fw + 1, y + 1, Theme.alpha(0xFF0B0F11, f * 0.7f));
+                c.fill(x0 - 1, y, x0 + 1, y + 2, Theme.alpha(0xFF0B0F11, f * 0.7f));
+                c.fill(x0 + fw - 1, y, x0 + fw + 1, y + 2, Theme.alpha(0xFF0B0F11, f * 0.7f));
             }
             for (int i = 0; i < 7; i++) {       // dust churned up at the base
                 double ang = t * 2.2 + i * 0.9;
@@ -305,23 +311,18 @@ public final class Season {
 
     /** Soft dark edges so the menu in the middle stands out. */
     public static void vignette(DrawContext c, int w, int h, float f) {
-        int n = 26;
-        for (int i = 0; i < n; i++) {
-            float k = 1f - i / (float) n;
-            int col = Theme.alpha(0xFF000000, 0.28f * k * k * f);
-            c.fill(0, i, w, i + 1, col);
-            c.fill(0, h - i - 1, w, h - i, col);
-            c.fill(i, 0, i + 1, h, col);
-            c.fill(w - i - 1, 0, w - i, h, col);
+        int n = 26, e = 0x00000000, d = Theme.alpha(0xFF000000, 0.28f * f);
+        c.fillGradient(0, 0, w, n, d, e);
+        c.fillGradient(0, h - n, w, h, e, d);
+        for (int i = 0; i < n; i += 2) {      // left / right edges in 2 px bands
+            int col = Theme.alpha(0xFF000000, 0.28f * (1f - i / (float) n) * (1f - i / (float) n) * f);
+            c.fill(i, n, i + 2, h - n, col);
+            c.fill(w - i - 2, n, w - i, h - n, col);
         }
         if (current == WINTER) {      // cold blue frost creeping in from the edges
-            for (int i = 0; i < 18; i++) {
-                float k = 1f - i / 18f;
-                int col = Theme.alpha(0xFF9CC8FF, 0.07f * k * k * f);
-                c.fill(0, i, w, i + 1, col);
-                c.fill(i, 0, i + 1, h, col);
-                c.fill(w - i - 1, 0, w - i, h, col);
-            }
+            int fr = Theme.alpha(0xFF9CC8FF, 0.07f * f);
+            c.fillGradient(0, 0, w, 18, fr, Theme.alpha(0xFF9CC8FF, 0f));
+            c.fillGradient(0, 0, 18, h, fr, Theme.alpha(0xFF9CC8FF, 0f));
         }
         if (current == TORNADO) {
             float fl = flash();
@@ -340,7 +341,7 @@ public final class Season {
                 c.fill(x, y, x + 1, y + 1, Theme.alpha(0xFFFFE9C4, f * tw * 0.8f));
             }
             int mx = (int) (w * 0.82), my = (int) (h * 0.2), r = Math.max(14, Math.min(30, h / 12));
-            for (int i = 10; i >= 1; i--) disc(c, mx, my, r + i * 4, Theme.alpha(0xFFFF9A2E, f * 0.012f));
+            for (int i = 4; i >= 1; i--) disc(c, mx, my, r + i * 10, Theme.alpha(0xFFFF9A2E, f * 0.03f));
             disc(c, mx, my, r, Theme.alpha(0xFFFFE2A8, f));
             disc(c, mx - r / 3, my - r / 4, Math.max(2, r / 5), Theme.alpha(0xFFE9C27F, f));
             disc(c, mx + r / 3, my + r / 3, Math.max(2, r / 4), Theme.alpha(0xFFE9C27F, f));
@@ -355,7 +356,7 @@ public final class Season {
                 }
             }
             int mx = (int) (w * 0.80), my = (int) (h * 0.17), mr = Math.max(7, Math.min(16, h / 16));
-            for (int i = 8; i >= 1; i--) disc(c, mx, my, mr + i * 3, Theme.alpha(0xFFBFE6FF, f * 0.014f));
+            for (int i = 3; i >= 1; i--) disc(c, mx, my, mr + i * 8, Theme.alpha(0xFFBFE6FF, f * 0.04f));
             disc(c, mx, my, mr, Theme.alpha(0xFFEAF4FF, f));
             disc(c, mx - mr / 3, my - mr / 4, Math.max(1, mr / 5), Theme.alpha(0xFFC4D8F0, f));
             disc(c, mx + mr / 3, my + mr / 3, Math.max(1, mr / 4), Theme.alpha(0xFFC4D8F0, f));
@@ -370,11 +371,7 @@ public final class Season {
                     c.fill(px, py, px + 1, py + 1, Theme.alpha(0xFFFFFFFF, f * fade * (1f - k / 16f)));
                 }
             }
-            int gh = (int) (h * 0.22);
-            for (int i = 0; i < gh; i++) {      // glowing sky the snow falls out of
-                float k = 1f - i / (float) gh;
-                c.fill(0, i, w, i + 1, Theme.alpha(0xFFBFE6FF, 0.10f * k * k * f));
-            }
+            c.fillGradient(0, 0, w, (int) (h * 0.22), Theme.alpha(0xFFBFE6FF, 0.10f * f), Theme.alpha(0xFFBFE6FF, 0f));   // glowing sky the snow falls out of
             for (int i = 0; i < 5; i++) {       // thin drifting cloud streaks
                 int bw = 100 + (i * 41) % 70, span = w + bw, x = (int) ((t * (1.5 + i * 0.4) + i * span / 5.0) % span) - bw;
                 int y = (int) (h * (0.26 + 0.045 * i));
@@ -384,9 +381,9 @@ public final class Season {
         } else if (current == TORNADO) {
             float fl = flash();
             int sh = (int) (h * 0.45);
-            for (int i = 0; i < sh; i++) c.fill(0, i, w, i + 1, Theme.alpha(0xFF070B0D, 0.9f * (1f - i / (float) sh) * f));
-            for (int i = 0; i < 6; i++) {       // far, pale clouds near the horizon
-                int span = w + 160, x = (int) ((t * 2 + i * span / 6.0) % span) - 80, y = (int) (h * 0.30) + (i % 3) * 8;
+            c.fillGradient(0, 0, w, sh, Theme.alpha(0xFF070B0D, 0.9f * f), Theme.alpha(0xFF070B0D, 0f));
+            for (int i = 0; i < 4; i++) {       // far, pale clouds near the horizon
+                int span = w + 160, x = (int) ((t * 2 + i * span / 4.0) % span) - 80, y = (int) (h * 0.30) + (i % 3) * 8;
                 cloud(c, x, y, 4, 5, 9, 0xFF39443F, f * 0.9f, fl);
             }
             if (fl > 0.05f) {       // lightning bolt, drawn behind the near clouds so it comes out of them
@@ -401,8 +398,8 @@ public final class Season {
                     }
                 }
             }
-            for (int i = 0; i < 5; i++) {       // mid layer
-                int span = w + 300, x = (int) ((t * (3 + i % 3) + i * span / 5.0) % span) - 150, y = (int) (h * 0.12) + (i % 3) * (int) (h * 0.05);
+            for (int i = 0; i < 4; i++) {       // mid layer
+                int span = w + 300, x = (int) ((t * (3 + i % 3) + i * span / 4.0) % span) - 150, y = (int) (h * 0.12) + (i % 3) * (int) (h * 0.05);
                 cloud(c, x, y, 6, 9, 14, 0xFF1F282B, f, fl);
             }
             for (int i = 0; i < 3; i++) {       // heavy near layer at the top
@@ -411,7 +408,7 @@ public final class Season {
             }
         } else if (current == SUMMER) {
             int sx = (int) (w * 0.16), sy = (int) (h * 0.2), r = Math.max(12, Math.min(26, h / 14));
-            for (int i = 14; i >= 1; i--) disc(c, sx, sy, r + i * 5, Theme.alpha(0xFFFFF3B0, f * 0.028f));
+            for (int i = 4; i >= 1; i--) disc(c, sx, sy, r + i * 17, Theme.alpha(0xFFFFF3B0, f * 0.08f));
             for (int k = 0; k < 12; k++) {
                 double ang = t * 0.25 + k * Math.PI / 6;
                 for (int d = r + 5; d <= r + 14; d += 2) {
@@ -439,11 +436,11 @@ public final class Season {
         double t = time();
         int gh = h / 7, top = h - gh;
         if (current == WINTER) {
-            for (int y = 0; y < gh; y++) c.fill(0, top + y, w, top + y + 1, Theme.mix(0xFFB5CFEA, 0xFF3E5F8A, y / (float) gh));
-            for (int x = 0; x < w; x += 2) {      // soft drifts along the horizon
+            c.fillGradient(0, top, w, top + gh, 0xFFB5CFEA, 0xFF3E5F8A);
+            for (int x = 0; x < w; x += 4) {      // soft drifts along the horizon
                 int d = 2 + (int) Math.round(Math.sin(x * 0.03) * 2 + Math.sin(x * 0.09 + 1) * 1.2);
-                c.fill(x, top - d, x + 2, top, Theme.alpha(0xFFC9DDF3, f));
-                c.fill(x, top - d, x + 2, top - d + 1, Theme.alpha(0xFFFFFFFF, 0.6f * f));
+                c.fill(x, top - d, x + 4, top, Theme.alpha(0xFFC9DDF3, f));
+                c.fill(x, top - d, x + 4, top - d + 1, Theme.alpha(0xFFFFFFFF, 0.6f * f));
             }
             for (int i = 0; i < 26; i++) {        // ice glints
                 int gx = (int) ((i * 7919L) % Math.max(1, w)), gy = top + 3 + (int) ((i * 104729L) % Math.max(1, gh - 4));
@@ -452,13 +449,13 @@ public final class Season {
                 c.fill(gx, gy - 1, gx + 1, gy + 2, Theme.alpha(0xFFFFFFFF, 0.55f * k * k * f));
             }
         } else if (current == HALLOWEEN) {
-            for (int y = 0; y < gh; y++) c.fill(0, top + y, w, top + y + 1, Theme.mix(0xFF1C0F1C, 0xFF07030A, y / (float) gh));
+            c.fillGradient(0, top, w, top + gh, 0xFF1C0F1C, 0xFF07030A);
             c.fill(0, top, w, top + 1, Theme.alpha(0xFFFF8A1F, 0.35f));
             float[] pos = {0.10f, 0.27f, 0.74f, 0.91f};
             int[] size = {13, 9, 11, 16};
             for (int i = 0; i < pos.length; i++) pumpkin(c, (int) (w * pos[i]), top + size[i] / 3, size[i], t, i, f);
         } else if (current == TORNADO) {
-            for (int y = 0; y < gh; y++) c.fill(0, top + y, w, top + y + 1, Theme.mix(0xFF222C18, 0xFF0A0F08, y / (float) gh));
+            c.fillGradient(0, top, w, top + gh, 0xFF222C18, 0xFF0A0F08);
             c.fill(0, top, w, top + 1, Theme.alpha(0xFFB5C46A, 0.25f));
             for (int x = 0; x < w; x += 4) {      // wheat bent by the wind
                 int hh = 4 + (x * 7) % 5, lean = (int) Math.round(Math.sin(t * 3 + x * 0.2) * 2 + 3);
@@ -466,7 +463,7 @@ public final class Season {
                 c.fill(x + lean, top - hh - 1, x + lean + 1, top - hh + 1, 0xFF8A7B3A);
             }
         } else {
-            for (int y = 0; y < gh; y++) c.fill(0, top + y, w, top + y + 1, Theme.mix(0xFF4CAF50, 0xFF2E7D32, y / (float) gh));
+            c.fillGradient(0, top, w, top + gh, 0xFF4CAF50, 0xFF2E7D32);
             c.fill(0, top, w, top + 2, 0xFF7ED957);
             for (int x = 0; x < w; x += 5) {
                 int hh = 3 + (x * 13) % 5;
@@ -565,7 +562,7 @@ public final class Season {
             backdrop(c, VW, VH, f);
             skyline(c, VW, VH, f);
             ground(c, VW, VH, f);
-            particles(c, VW, VH, 26, 0.9f * f);
+            particles(c, VW, VH, 12, 0.9f * f);
             c.getMatrices().popMatrix();
             c.disableScissor();
         } finally {

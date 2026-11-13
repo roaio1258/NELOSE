@@ -64,8 +64,8 @@ public class NeloseTitleScreen extends Screen {
         Season.sky(c, width, height);
         Season.backdrop(c, width, height, f);
         int gy = height / 2 - 62;
-        for (int i = 40; i >= 1; i--) {
-            c.fill(width / 2 - i * 5, gy - i * 2, width / 2 + i * 5, gy + i * 2, Theme.alpha(a1, 0.006f * f));
+        for (int i = 40; i >= 4; i -= 4) {
+            c.fill(width / 2 - i * 5, gy - i * 2, width / 2 + i * 5, gy + i * 2, Theme.alpha(a1, 0.024f * f));
         }
         Season.skyline(c, width, height, f);
         Season.ground(c, width, height, f);
