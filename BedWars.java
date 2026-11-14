@@ -233,7 +233,7 @@ public final class BedWars {
 
     private static void beds(DrawContext c, MinecraftClient mc, TextRenderer tr) {
         List<BlockPos> list = new ArrayList<>(BEDS);
-        Vec3d pp = mc.player.getPos();
+        Vec3d pp = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
         list.sort((a, b) -> Double.compare(a.getSquaredDistance(pp), b.getSquaredDistance(pp)));
         int max = (int) Modules.BED_FINDER.f("Max labels");
         boolean dist = Modules.BED_FINDER.b("Distance");
