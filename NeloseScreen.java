@@ -54,15 +54,15 @@ public class NeloseScreen extends Screen {
         }
     }
 
-    private static final net.minecraft.util.Identifier FROST = net.minecraft.util.Identifier.of("nelose", "textures/gui/frost.png");
-
-    /** Fine frosted-glass grain over the window, tiled from a 128x128 texture. */
+    /** Fine frosted-glass grain over the window. Drawn with plain fills (no texture), so it can never show as a pink/black checkerboard. */
     private static void frost(DrawContext c, int x, int y, int w, int h) {
-        for (int ty = 0; ty < h; ty += 128) {
-            for (int tx = 0; tx < w; tx += 128) {
-                int tw = Math.min(128, w - tx), th = Math.min(128, h - ty);
-                c.drawTexture(net.minecraft.client.gl.RenderPipelines.GUI_TEXTURED, FROST, x + tx, y + ty, 0f, 0f, tw, th, 128, 128);
-            }
+        int n = Math.min(900, Math.max(0, w * h / 140));
+        for (int i = 0; i < n; i++) {
+            long hsh = (i * 2654435761L + 0x9E3779B9L) & 0xFFFFFFFFL;
+            int px = x + (int) (hsh % Math.max(1, w));
+            int py = y + (int) (((hsh >>> 8) * 40503L + i * 7919L) % Math.max(1, h));
+            boolean light = (hsh & 1) == 0;
+            c.fill(px, py, px + 1, py + 1, light ? 0x14FFFFFF : 0x0C000000);
         }
     }
 
@@ -346,11 +346,20 @@ public class NeloseScreen extends Screen {
                 c.drawText(textRenderer, v, px + PW - PPAD - textRenderer.getWidth(v), ry + 2, Theme.alpha(a1, pa), false);
                 int tx = px + PPAD + 1, tw = PW - PPAD * 2 - 2, ty = ry + 16;
                 boolean act = activeSlider == s;
-                Theme.round(c, tx, ty, tw, 4, 2, Theme.alpha(0x55FFFFFF, pa));
-                int fw = Math.max(3, (int) (tw * s.fraction()));
+                if (s.disp < 0f) s.disp = (float) s.fraction();
+                s.disp += ((float) s.fraction() - s.disp) * 0.3f;          // fill glides to the new value
+                s.knob += ((act ? 1f : 0f) - s.knob) * 0.25f;              // knob grows while you hold it
+                Theme.round(c, tx, ty, tw, 4, 2, Theme.alpha(Theme.mix(0x55FFFFFF, a1 & 0xFFFFFF | 0x55000000, s.knob * 0.4f), pa));
+                int fw = Math.max(3, (int) (tw * s.disp));
                 Theme.gradBar(c, tx, ty + 1, fw, 2, a1, a2, tw, pa);
-                int kr = act ? 5 : 4;
-                Theme.round(c, tx + fw - kr, ty + 2 - kr, kr * 2, kr * 2, kr, Theme.alpha(0xFFFFFFFF, pa));
+                if (s.knob > 0.02f) {                                       // soft glow around the knob
+                    for (int g = 3; g >= 1; g--) {
+                        int gr = 4 + g * 3;
+                        Theme.round(c, tx + fw - gr, ty + 2 - gr, gr * 2, gr * 2, gr, Theme.alpha(a1, pa * s.knob * 0.10f * (4 - g)));
+                    }
+                }
+                int kr = 4 + Math.round(2f * s.knob);
+                Theme.round(c, tx + fw - kr, ty + 2 - kr, kr * 2, kr * 2, kr, Theme.alpha(Theme.mix(0xFFFFFFFF, a2, 0.25f * s.knob), pa));
             }
             ry += rowH(s);
         }

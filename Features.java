@@ -273,16 +273,69 @@ public final class Features {
             }
         }
 
-        // aura (helix)
-        if (Modules.AURA.on) {
-            double t = mc.player.age * Modules.AURA.f("Speed");
-            double rad = Modules.AURA.f("Radius");
-            int dens = (int) Modules.AURA.f("Density");
-            double h = 0.5 + 0.5 * Math.sin(mc.player.age * 0.12);
-            for (int k = 0; k < dens; k++) {
-                double a = t + k * Math.PI * 2 / dens;
-                spawn(mc, dust(0.9f), px + Math.cos(a) * rad, py + h * mc.player.getHeight(), pz + Math.sin(a) * rad, 0, 0, 0);
+        aura(mc, px, py, pz, r);
+    }
+
+    private static ParticleEffect dustC(int rgb, float size) {
+        return new DustParticleEffect(rgb & 0xFFFFFF, size);
+    }
+
+    /** Aura: three styles, colours blend from the theme accent to the second accent. */
+    private static void aura(MinecraftClient mc, double px, double py, double pz, ThreadLocalRandom r) {
+        if (!Modules.AURA.on) return;
+        double rad = Modules.AURA.f("Radius");
+        double sp = Modules.AURA.f("Speed");
+        int dens = Math.max(1, (int) Modules.AURA.f("Density"));
+        boolean spark = Modules.AURA.b("Sparkles");
+        int style = Modules.AURA.idx("Style");
+        double age = mc.player.age;
+        double ph = mc.player.getHeight();
+        double t = age * sp;
+        int c1 = Theme.accent(), c2 = Theme.accent2();
+
+        if (style == 0) {                                   // double helix that slides up the body
+            int n = dens * 2;
+            for (int strand = 0; strand < 2; strand++) {
+                for (int j = 0; j < n; j++) {
+                    double f = ((age * 0.035 + j / (double) n) % 1.0);
+                    double a = t * 1.4 + f * 7.0 + strand * Math.PI;
+                    double rr = rad * (0.82 + 0.18 * Math.sin(f * Math.PI));
+                    int col = Theme.mix(c1, c2, (float) f);
+                    spawn(mc, dustC(col, 0.8f), px + Math.cos(a) * rr, py + 0.05 + f * (ph + 0.15), pz + Math.sin(a) * rr, 0, 0, 0);
+                }
             }
+            if (spark && r.nextInt(3) == 0) {
+                double a = r.nextDouble(Math.PI * 2);
+                spawn(mc, ParticleTypes.END_ROD, px + Math.cos(a) * rad, py + r.nextDouble(ph), pz + Math.sin(a) * rad, 0, 0.015, 0);
+            }
+        } else if (style == 1) {                            // halo above the head + pulsing ring at the feet
+            int n = dens * 4;
+            double hy = py + ph + 0.3 + 0.05 * Math.sin(age * 0.2);
+            for (int i = 0; i < n; i++) {
+                double a = t * 1.2 + i * Math.PI * 2 / n;
+                spawn(mc, dustC(Theme.mix(c1, c2, i / (float) n), 0.7f), px + Math.cos(a) * rad * 0.55, hy, pz + Math.sin(a) * rad * 0.55, 0, 0, 0);
+            }
+            double pulse = (age * 0.04) % 1.0;
+            for (int i = 0; i < dens * 3; i++) {
+                double a = i * Math.PI * 2 / (dens * 3) - t;
+                double rr = rad * (0.4 + 0.9 * pulse);
+                spawn(mc, dustC(Theme.mix(c2, c1, (float) pulse), 0.6f), px + Math.cos(a) * rr, py + 0.05, pz + Math.sin(a) * rr, 0, 0, 0);
+            }
+            if (spark && r.nextInt(4) == 0)
+                spawn(mc, ParticleTypes.END_ROD, px + r.nextDouble(-0.3, 0.3), hy, pz + r.nextDouble(-0.3, 0.3), 0, -0.01, 0);
+        } else {                                            // three tilted orbits
+            for (int o = 0; o < 3; o++) {
+                double tilt = o * Math.PI / 3.0, yaw = o * 2.1;
+                for (int k = 0; k < dens; k++) {
+                    double a = t * (1.0 + o * 0.25) + k * Math.PI * 2 / dens + o * 2.1;
+                    double lx = Math.cos(a) * rad, ly = Math.sin(a) * rad;
+                    double yy = ly * Math.cos(tilt), zz = ly * Math.sin(tilt);
+                    double wx = lx * Math.cos(yaw) - zz * Math.sin(yaw), wz = lx * Math.sin(yaw) + zz * Math.cos(yaw);
+                    spawn(mc, dustC(Theme.mix(c1, c2, o / 2f), 0.8f), px + wx, py + ph * 0.55 + yy * 0.8, pz + wz, 0, 0, 0);
+                }
+            }
+            if (spark && r.nextInt(3) == 0)
+                spawn(mc, ParticleTypes.END_ROD, px + r.nextDouble(-rad, rad), py + r.nextDouble(ph), pz + r.nextDouble(-rad, rad), 0, 0.01, 0);
         }
     }
 

@@ -156,7 +156,7 @@ public final class Hud {
             if (!st.isEmpty()) items.add(st);
         }
         if (items.isEmpty()) {
-            if (!(mc.currentScreen instanceof NeloseScreen)) return;   // preview while moving widgets
+            if (!(mc.currentScreen instanceof NeloseScreen || mc.currentScreen instanceof net.minecraft.client.gui.screen.ChatScreen)) return;   // preview while moving widgets
             items.add(new ItemStack(Items.DIAMOND_HELMET)); items.add(new ItemStack(Items.DIAMOND_CHESTPLATE));
             items.add(new ItemStack(Items.DIAMOND_LEGGINGS)); items.add(new ItemStack(Items.DIAMOND_BOOTS));
         }
@@ -209,7 +209,7 @@ public final class Hud {
         if (mc.targetedEntity instanceof LivingEntity le) {
             name = le.getName().getString();
             hp = le.getHealth(); max = Math.max(1f, le.getMaxHealth()); dist = mc.player.distanceTo(le);
-        } else if (mc.currentScreen instanceof NeloseScreen) {   // preview while moving widgets
+        } else if (mc.currentScreen instanceof NeloseScreen || mc.currentScreen instanceof net.minecraft.client.gui.screen.ChatScreen) {   // preview while moving widgets
             name = "Target"; hp = 20f; max = 20f; dist = 3.5f;
         } else return;
         String hpText = String.format(Locale.ROOT, "%.1f / %.0f", hp, max)

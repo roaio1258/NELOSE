@@ -112,7 +112,9 @@ public final class Modules {
     public static final Module TRAIL = add("Trail", "Colored trail behind you", Category.EFFECTS, false, true)
         .slider("Density", 1, 4, 2, 1).slider("Size", 0.5, 2.0, 1.0, 0.1);
     public static final Module AURA = add("Aura", "Spiral of particles around you", Category.EFFECTS, false, true)
-        .slider("Radius", 0.4, 1.5, 0.75, 0.05).slider("Speed", 0.1, 0.8, 0.35, 0.01).slider("Density", 1, 4, 2, 1);
+        .mode("Style", 0, "Helix", "Halo", "Orbit")
+        .slider("Radius", 0.4, 1.5, 0.75, 0.05).slider("Speed", 0.1, 0.8, 0.35, 0.01).slider("Density", 1, 6, 3, 1)
+        .toggle("Sparkles", true);
     public static final Module HIT_SOUNDS = add("Hit Sounds", "Sound when you hit something", Category.EFFECTS, false, true)
         .mode("Sound", 0, "Bell", "Bonk", "Bubble", "Pop", "Hit1", "Hit2", "Hit3")
         .slider("Volume", 0.1, 1.0, 0.7, 0.05).slider("Pitch", 0.5, 2.0, 1.0, 0.05);

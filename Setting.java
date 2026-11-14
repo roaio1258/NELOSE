@@ -12,6 +12,7 @@ public final class Setting {
     public boolean on;
     public double value, min, max, step;
     public float anim;   // switch animation
+    public float disp = -1f, knob;   // slider animation: smoothed fill and knob grow
     public String depName;   // shown only when this mode setting has one of depVals
     public int[] depVals;
 

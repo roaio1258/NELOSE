@@ -75,6 +75,7 @@ public class Nelose implements ClientModInitializer {
             (context, tickCounter) -> {
                 Watermark.render(context);
                 Hud.render(context, tickCounter.getTickProgress(true));
+                HudDrag.render(context);
             });
     }
 }
