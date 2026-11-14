@@ -14,18 +14,18 @@ import java.util.List;
 import java.util.Map;
 
 public class NeloseScreen extends Screen {
-    private static final int W = 500, H = 292, SIDE_FULL = 112, SIDE_MIN = 40, ROW = 28, STEP = 32;
+    private static final int W = 500, H = 316, SIDE_FULL = 112, SIDE_MIN = 40, ROW = 28, STEP = 32;
     private static boolean collapsed, searching;
     private static String query = "";
     private float sideW = SIDE_FULL;
     private int side() { return Math.round(sideW); }
     private void resetScroll() { scroll = scrollTarget = 0; }
-    private static final int CH = 40, CSTEP = 48, GAPG = 8;     // module cards: height, row step, gap
+    private static final int CH = 62, CSTEP = 70, GAPG = 8;     // module cards: height, row step, gap
     private static final int GDIM = 0xFFC9D0DC, GDARK = 0xFF141A28;   // glass theme: dim text, dark base
 
     // ---------- frosted glass look ----------
     /** 1px outline of a rounded rectangle. */
-    private static void outline(DrawContext c, int x, int y, int w, int h, int r, int col) {
+    static void outline(DrawContext c, int x, int y, int w, int h, int r, int col) {
         r = Math.min(r, Math.min(w, h) / 2);
         c.fill(x + r, y, x + w - r, y + 1, col);
         c.fill(x + r, y + h - 1, x + w - r, y + h, col);
@@ -241,7 +241,7 @@ public class NeloseScreen extends Screen {
     private int slide() { return (int) ((1f - tabFade) * 10); }
     private int rowY(int i) { return top() + i * STEP - (int) scroll + slide(); }
 
-    private boolean isGrid() { return !query.isEmpty() || (tab != Category.THEME && tab != Category.SETTINGS); }
+    private boolean isGrid() { return !query.isEmpty() || (tab != Category.THEME && tab != Category.SETTINGS && tab != Category.MARKS); }
 
     /** Modules of the open tab, or every module that matches the search text. */
     private List<Module> curMods() {
@@ -250,7 +250,8 @@ public class NeloseScreen extends Screen {
         List<Module> r = new ArrayList<>();
         for (Module m : Modules.ALL) {
             if (m.cat == Category.THEME || m.cat == Category.SETTINGS) continue;
-            if (m.name.toLowerCase(java.util.Locale.ROOT).contains(q) || m.desc.toLowerCase(java.util.Locale.ROOT).contains(q)) r.add(m);
+            if (m.name.toLowerCase(java.util.Locale.ROOT).contains(q) || m.desc.toLowerCase(java.util.Locale.ROOT).contains(q)
+                || Ru.of(m.name).toLowerCase(java.util.Locale.ROOT).contains(q)) r.add(m);
         }
         return r;
     }
@@ -271,7 +272,7 @@ public class NeloseScreen extends Screen {
     /** Sidebar tab position: two groups (Modules, Client), animated between neighbours. */
     private int slotI(int i) {
         int g = Category.THEME.ordinal();
-        return i < g ? y + 86 + i * 24 : y + 196 + (i - g) * 24;
+        return i < g ? y + 83 + i * 23 : y + 212 + (i - g) * 23;
     }
 
     private int slotY(float pos) {
@@ -279,6 +280,53 @@ public class NeloseScreen extends Screen {
         int lo = Math.max(0, Math.min(last, (int) Math.floor(pos))), hi = Math.min(last, lo + 1);
         float fr = Math.max(0f, Math.min(1f, pos - lo));
         return Math.round(slotI(lo) + (slotI(hi) - slotI(lo)) * fr);
+    }
+
+    // ---------- tab icons (pixel bitmaps, the default font has no emoji) ----------
+    private static final String[] IC_VISUALS = {
+        "..#####..", ".#.....#.", "#..###..#", ".#.....#.", "..#####.."};
+    private static final String[] IC_HUD = {
+        "#########", "#.......#", "#.#####.#", "#.......#", "#.###...#", "#########"};
+    private static final String[] IC_PLAYER = {
+        "...###...", "..#####..", "...###...", ".........", ".#######.", "#########", "#########"};
+    private static final String[] IC_BEDWARS = {
+        "#.......#", "#.##....#", "#########", "#########", "#.......#"};
+    private static final String[] IC_EFFECTS = {
+        "....#....", "....#....", "...###...", "#########", "...###...", "....#....", "....#...."};
+    private static final String[] IC_THEME = {
+        "....#....", "...###...", "..#####..", ".#######.", ".#######.", "..#####.."};
+    private static final String[] IC_SETTINGS = {
+        "....#....", ".#.###.#.", "..#####..", ".###.###.", "..#####..", ".#.###.#.", "....#...."};
+
+    private static final String[] IC_MARKS = {
+        "..#####..", ".#######.", ".###.###.", ".#######.", "..#####..", "...###...", "....#...."};
+
+    private static String[] iconOf(Category cat) {
+        return switch (cat) {
+            case VISUALS -> IC_VISUALS;
+            case HUD -> IC_HUD;
+            case PLAYER -> IC_PLAYER;
+            case BEDWARS -> IC_BEDWARS;
+            case EFFECTS -> IC_EFFECTS;
+            case THEME -> IC_THEME;
+            case SETTINGS -> IC_SETTINGS;
+            case MARKS -> IC_MARKS;
+        };
+    }
+
+    /** Draws the tab icon centred on cx, cy; each row is drawn as horizontal runs. */
+    private static void drawIcon(DrawContext c, Category cat, int cx, int cy, int col) {
+        String[] rows = iconOf(cat);
+        int ox = cx - 4, oy = cy - rows.length / 2;
+        for (int r = 0; r < rows.length; r++) {
+            String row = rows[r];
+            int start = -1;
+            for (int i = 0; i <= row.length(); i++) {
+                boolean px = i < row.length() && row.charAt(i) == '#';
+                if (px && start < 0) start = i;
+                if (!px && start >= 0) { c.fill(ox + start, oy + r, ox + i, oy + r + 1, col); start = -1; }
+            }
+        }
     }
 
     private int tabY(Category cat) { return slotY(cat.ordinal()); }
@@ -471,8 +519,8 @@ public class NeloseScreen extends Screen {
             int nw = textRenderer.getWidth("Nelose");
             c.drawTextWithShadow(textRenderer, "Nelose", x + (sd - nw) / 2, y + 52, Theme.alpha(Theme.TEXT, f));
             Theme.gradBar(c, x + (sd - nw) / 2, y + 63, nw, 1, a1, a2, nw, f);
-            c.drawText(textRenderer, "Modules", x + 12, y + 74, Theme.alpha(GDIM, f * 0.65f), false);
-            c.drawText(textRenderer, "Client", x + 12, y + 184, Theme.alpha(GDIM, f * 0.65f), false);
+            c.drawText(textRenderer, "Modules", x + 12, y + 71, Theme.alpha(GDIM, f * 0.65f), false);
+            c.drawText(textRenderer, "Client", x + 12, y + 200, Theme.alpha(GDIM, f * 0.65f), false);
         } else {
             Avatar.draw(c, x + sd / 2, y + 36, 10, f);
         }
@@ -488,10 +536,11 @@ public class NeloseScreen extends Screen {
             boolean hov = mx >= x + 8 && mx <= x + sd - 8 && my >= ty && my <= ty + 22;
             if (hov && !sel) Theme.round(c, x + 8, ty, sd - 16, 22, 6, Theme.alpha(0xFFFFFFFF, f * 0.07f));
             int tc = Theme.alpha(sel ? Theme.TEXT : (hov ? 0xFFC8C8D2 : GDIM), f);
-            if (wide) c.drawTextWithShadow(textRenderer, cat.title, x + 20 + (sel ? 2 : 0), ty + 7, tc);
-            else {
-                String ini = cat.title.substring(0, 1);
-                c.drawTextWithShadow(textRenderer, ini, x + sd / 2 - textRenderer.getWidth(ini) / 2, ty + 7, tc);
+            if (wide) {
+                drawIcon(c, cat, x + 22 + (sel ? 2 : 0), ty + 11, tc);
+                c.drawTextWithShadow(textRenderer, cat.title, x + 33 + (sel ? 2 : 0), ty + 7, tc);
+            } else {
+                drawIcon(c, cat, x + sd / 2, ty + 11, tc);
             }
         }
 
@@ -553,6 +602,8 @@ public class NeloseScreen extends Screen {
             renderTheme(c, mx, my, rf, a1, a2);
         } else if (!grid && tab == Category.SETTINGS) {
             renderSettings(c, mx, my, rf, a1);
+        } else if (!grid && tab == Category.MARKS) {
+            MarksTab.render(c, textRenderer, cx, top + slide(), cw, bottom - top, mx, my, rf, a1);
         } else {
             if (mods.isEmpty()) {
                 String none = "No modules found";
@@ -601,6 +652,13 @@ public class NeloseScreen extends Screen {
         List<String> lines = WRAP.computeIfAbsent(m.name + "|" + rw, k -> wrap(m.desc, rw - 18, 2));
         for (int k = 0; k < lines.size(); k++)
             c.drawText(textRenderer, lines.get(k), rx + 9, ry + 18 + k * 10, Theme.alpha(GDIM, f * 0.85f), false);
+        String ruTxt = Ru.of(m.name);
+        if (!ruTxt.isEmpty()) {
+            List<String> ru = WRAP.computeIfAbsent("ru|" + m.name + "|" + rw, k -> wrap(ruTxt, rw - 18, 2));
+            c.fill(rx + 9, ry + 39, rx + rw - 9, ry + 40, Theme.alpha(0xFFFFFFFF, f * 0.08f));
+            for (int k = 0; k < ru.size(); k++)
+                c.drawText(textRenderer, ru.get(k), rx + 9, ry + 43 + k * 9, Theme.alpha(Theme.mix(GDIM, a1, 0.45f), f * 0.95f), false);
+        }
         int sw = 26, sh = 12, sx = rx + rw - sw - 9, sy = ry + 6;
         Theme.round(c, sx, sy, sw, sh, 6, Theme.alpha(Theme.mix(0xFF7A8396, a1, m.anim), f * (0.55f + 0.45f * m.anim)));
         Theme.round(c, sx + 2 + (int) ((sw - sh) * m.anim), sy + 2, sh - 4, sh - 4, 4, Theme.alpha(0xFFFFFFFF, f));
@@ -703,6 +761,7 @@ public class NeloseScreen extends Screen {
             return true;
         }
         int key = input.key();
+        if (tab == Category.MARKS && query.isEmpty() && MarksTab.key(key)) return true;
         if (key == GLFW.GLFW_KEY_RIGHT_SHIFT) { close(); return true; }
         if (searching) {
             if (key == GLFW.GLFW_KEY_ESCAPE) { searching = false; query = ""; resetScroll(); return true; }
@@ -719,7 +778,7 @@ public class NeloseScreen extends Screen {
             return true;
         }
         if (key == GLFW.GLFW_KEY_ESCAPE && !query.isEmpty()) { query = ""; resetScroll(); return true; }
-        if (key == GLFW.GLFW_KEY_SLASH) { searching = true; return true; }
+        if (key == GLFW.GLFW_KEY_SLASH && !MarksTab.typing()) { searching = true; return true; }
         return super.keyPressed(input);
     }
 
@@ -731,6 +790,7 @@ public class NeloseScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mx, double my, double h, double v) {
+        if (tab == Category.MARKS && query.isEmpty()) return MarksTab.scroll(v);
         scrollTarget -= (float) v * 22f;
         return true;
     }
@@ -835,6 +895,8 @@ public class NeloseScreen extends Screen {
                 else if (btn == 0) Modules.LOGO.on = !Modules.LOGO.on;
                 return true;
             }
+        } else if (!isGrid() && tab == Category.MARKS) {
+            if (my >= top() && my <= bottom() && MarksTab.click(cx, top() + slide(), cw, bottom() - top(), (int) mx, (int) my, btn)) return true;
         } else if (!isGrid() && tab == Category.THEME) {
             int top = top() + slide();
             if (btn == 0) {

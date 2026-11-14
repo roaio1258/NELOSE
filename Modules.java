@@ -17,9 +17,16 @@ public final class Modules {
     public static final Module ZOOM = add("Zoom", "Hold C to zoom in", Category.VISUALS, true, true)
         .slider("Zoom FOV", 15, 80, 30, 1).slider("Smoothness", 0.1, 0.6, 0.35, 0.01);
     public static final Module TARGET_HUD = add("Target HUD", "Health of the mob you look at", Category.VISUALS, true, true)
-        .toggle("Health text", true).toggle("Distance", false);
+        .toggle("Health text", true).toggle("Distance", false).toggle("Gear", true);
     public static final Module ARMOR_HUD = add("Armor HUD", "Armor and durability on screen", Category.VISUALS, true, true)
         .toggle("Durability", true);
+    public static final Module FREE_LOOK = add("Free Look", "Look around while your player keeps its direction (hold the key)", Category.VISUALS, false, true)
+        .toggle("Auto F5", true).mode("View", 0, "Back", "Front").toggle("Return view", true);
+    static { FREE_LOOK.key = org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_ALT; FREE_LOOK.bindMode = 1; }
+    public static final Module CRIT_HELPER = add("Crit Indicator", "Shows when your next hit will be a critical", Category.VISUALS, false, true)
+        .mode("Style", 0, "Text", "Dot");
+    public static final Module DAMAGE_POP = add("Damage Popup", "Damage you deal floats up from the crosshair", Category.VISUALS, false, true)
+        .slider("Duration", 400, 1600, 900, 50);
     public static final Module TARGET_ESP = add("Target ESP", "Animated effect around your target", Category.VISUALS, true, true)
         .mode("Mode", 0, "Ring", "Katanas", "Scan", "Lightning", "Storm", "Helix", "Shockwave", "Halo", "Orbs")
         .slider("Radius", 0.5, 2.0, 1.0, 0.05).when("Mode", 0, 1, 5, 6, 7, 8)
@@ -60,13 +67,43 @@ public final class Modules {
 
     // HUD
     public static final Module WATERMARK = add("Watermark", "Show the client watermark", Category.HUD, true, false)
-        .toggle("Glow", true);
+        .mode("Preset", 0, "Custom", "Glass", "Neon", "Classic", "Minimal")
+        .mode("Style", 0, "Pills", "Bar", "Text")
+        .mode("Align", 1, "Left", "Center", "Right")
+        .toggle("Client name", true).toggle("Username", true).toggle("Server", true).toggle("Icons", true)
+        .mode("Color", 0, "Theme", "Custom")
+        .slider("Hue", 0, 1, 0.58, 0.01).when("Color", 1)
+        .slider("Scale", 0.7, 1.6, 1.0, 0.05)
+        .slider("Rounding", 0, 11, 7, 1)
+        .slider("Opacity", 0.2, 1.0, 0.92, 0.02)
+        .slider("Spacing", 0, 10, 4, 1).when("Style", 0)
+        .toggle("Border", true).toggle("Accent line", false).toggle("Animated", true)
+        .toggle("FPS graph", true);
+    public static final Module POTION_EFFECTS = add("Potion Effects", "List of your active effects with timers", Category.HUD, true, false)
+        .mode("Style", 0, "Card", "Minimal").mode("Side", 0, "Right", "Left")
+        .toggle("Header", true).toggle("Show level", true).toggle("Effect colors", true)
+        .toggle("Timer bar", true).toggle("Blink when ending", true)
+        .mode("Sort", 0, "Time", "Name", "Level")
+        .slider("Max rows", 3, 12, 8, 1).slider("Scale", 0.7, 1.6, 1.0, 0.05).slider("Opacity", 0.2, 1.0, 0.92, 0.02);
+    public static final Module KEYBINDS = add("Keybinds", "List of modules that have a key bound", Category.HUD, false, false)
+        .toggle("Only enabled", false);
+    public static final Module INVENTORY_HUD = add("Inventory HUD", "Your inventory on screen", Category.HUD, false, false)
+        .toggle("Title", true).slider("Opacity", 0.2, 1.0, 0.92, 0.02);
+    public static final Module NOTIFY = add("Notifications", "Toast when a module is switched on or off", Category.HUD, false, false)
+        .slider("Duration", 1, 6, 2.5, 0.5);
+    public static final Module SESSION = add("Session", "Time you have been playing", Category.HUD, false, false);
+    public static final Module COMBO = add("Combo Counter", "Hits in a row, your reach and crits", Category.HUD, false, false)
+        .slider("Reset time", 1, 6, 3, 0.5).toggle("Reach", true).toggle("Crits", true).toggle("Reset when hurt", true);
+    public static final Module TOTEM_WARN = add("Totem Warning", "Warns when you have no totem", Category.HUD, false, false)
+        .mode("Check", 0, "Offhand", "Any").toggle("Only in combat", false);
+    public static final Module PVP_TIMER = add("PvP Timer", "Red timer at the top while you are in combat", Category.HUD, false, false)
+        .slider("Duration", 5, 60, 25, 1).toggle("Always show", false).toggle("Show clock", true);
     public static final Module FPS = add("FPS", "Frames per second", Category.HUD, true, false);
     public static final Module PING = add("Ping", "Latency to the server", Category.HUD, true, false);
     public static final Module TIME = add("Clock", "Real time in the watermark", Category.HUD, true, false)
-        .toggle("Seconds", false);
+        .toggle("Seconds", false).toggle("12 hour", false);
     public static final Module COORDS = add("Coordinates", "Your XYZ position", Category.HUD, true, false)
-        .toggle("Decimals", false);
+        .toggle("Decimals", false).toggle("Nether coords", false);
     public static final Module DIRECTION = add("Direction", "Where you are facing", Category.HUD, false, false);
     public static final Module SPEED = add("Speed", "Blocks per second", Category.HUD, false, false)
         .mode("Unit", 0, "b/s", "km/h");
@@ -86,6 +123,13 @@ public final class Modules {
         .toggle("Switch back", true);
     public static final Module MACE_HELPER = add("Mace Helper", "Shows when a mace smash is ready", Category.PLAYER, false, true)
         .slider("Min fall", 1.5, 6, 1.5, 0.5).toggle("Chat message", true);
+    public static final Module AUTO_CLICKER = add("Auto Clicker", "Hold the mouse button and it clicks for you", Category.PLAYER, false, true)
+        .mode("Button", 0, "Left", "Right")
+        .slider("Min CPS", 1, 40, 8, 1).slider("Max CPS", 1, 40, 12, 1)
+        .toggle("Players only", false).when("Button", 0)
+        .toggle("Respect cooldown", false).when("Button", 0);
+    public static final Module KILL_MESSAGE = add("Kill Message", "Sends your chat message when you kill a player: .killmsg text", Category.PLAYER, false, true)
+        .slider("Delay", 0, 60, 10, 1).slider("Cooldown", 1, 30, 5, 1);
     public static final Module AUTO_SPRINT = add("Auto sprint", "Always sprint while moving forward", Category.PLAYER, true, true)
         .toggle("Hunger check", true);
     public static final Module AUTO_RESPAWN = add("Auto respawn", "Skip the death screen", Category.PLAYER, false, true)
@@ -98,6 +142,29 @@ public final class Modules {
         .toggle("Copy gear", true).toggle("Face you", true);
     public static final Module ITEM_COUNTER = add("Item counter", "Totems, gapples, pearls, crystals", Category.PLAYER, true, true)
         .toggle("Totem", true).toggle("Gapple", true).toggle("Pearl", true).toggle("Crystal", true);
+
+    // BedWars
+    public static final Module BED_FINDER = add("Bed Finder", "Labels with distance on nearby beds", Category.BEDWARS, false, true)
+        .slider("Range", 8, 40, 24, 2).slider("Max labels", 1, 8, 4, 1).toggle("Distance", true);
+    public static final Module RESOURCE_ESP = add("Resource ESP", "Labels on dropped iron, gold, diamonds and emeralds", Category.BEDWARS, false, true)
+        .slider("Range", 8, 48, 24, 2)
+        .toggle("Iron", true).toggle("Gold", true).toggle("Diamond", true).toggle("Emerald", true);
+    public static final Module RESOURCE_HUD = add("Resource Counter", "Iron, gold, diamonds and emeralds in your inventory", Category.BEDWARS, false, true)
+        .toggle("Iron", true).toggle("Gold", true).toggle("Diamond", true).toggle("Emerald", true);
+    public static final Module BLOCK_COUNTER = add("Block Counter", "How many blocks you have left to bridge", Category.BEDWARS, false, true)
+        .slider("Low warning", 0, 64, 16, 4);
+    public static final Module VOID_ALERT = add("Void Alert", "Warning when you fall over the void", Category.BEDWARS, false, true)
+        .slider("Min fall", 2, 10, 4, 1).toggle("Sound", true);
+    public static final Module PLAYER_RADAR = add("Player Radar", "Nearby players with distance and health", Category.BEDWARS, false, true)
+        .slider("Range", 8, 64, 32, 2).slider("Rows", 2, 8, 5, 1);
+    public static final Module EAGLE = add("Eagle", "Sneaks at the edge of a block, releases when you step back", Category.BEDWARS, false, true)
+        .slider("Edge distance", 0.1, 0.6, 0.3, 0.05).toggle("Only moving back", false).toggle("Only on ground", true);
+    public static final Module AUTO_BRIDGE = add("Auto Bridge", "Places blocks under you while you walk, builds a bridge", Category.BEDWARS, false, true)
+        .mode("Direction", 1, "Any", "Backward only")
+        .slider("Delay", 0, 6, 0, 1).slider("Lookahead", 0.1, 0.9, 0.45, 0.05)
+        .toggle("Auto switch", true).toggle("Only on ground", true).toggle("Swing", true);
+    public static final Module BW_QUICK = add("BW Quick Use", "Keys: fireball, egg, water, blocks, sword, pickaxe", Category.BEDWARS, false, true)
+        .toggle("Switch back", true);
 
     // Effects
     public static final Module HIT_PARTICLES = add("Hit particles", "Crit burst when you hit a mob", Category.EFFECTS, true, true)

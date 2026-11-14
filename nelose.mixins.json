@@ -1,9 +1,7 @@
 {
   "required": true,
-  "minVersion": "0.8",
   "package": "nelose.mixin",
   "compatibilityLevel": "JAVA_21",
-  "client": [
-    "GameRendererMixin"
-  ]
+  "client": ["CameraMixin", "EntityMixin"],
+  "injectors": { "defaultRequire": 1 }
 }

@@ -57,6 +57,12 @@ public final class Module {
 
     public void setIdx(String n, int v) { Setting s = find(n); s.index = Math.max(0, Math.min(s.options.length - 1, v)); }
 
+    /** Sets a slider value (clamped), used by presets. */
+    public void setF(String n, double v) { Setting s = find(n); s.value = Math.max(s.min, Math.min(s.max, v)); }
+
+    /** Sets a toggle, used by presets. */
+    public void setB(String n, boolean v) { Setting s = find(n); s.on = v; s.anim = v ? 1f : 0f; }
+
     public float f(String n) { return (float) find(n).value; }
     public boolean b(String n) { return find(n).on; }
 }

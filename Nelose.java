@@ -1,6 +1,7 @@
 package nelose;
 
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -23,6 +24,9 @@ public class Nelose implements ClientModInitializer {
     public void onInitializeClient() {
         Config.load();
         Accounts.load();
+        Marks.load();
+        KillMessage.load();
+        ClientSendMessageEvents.ALLOW_CHAT.register(msg -> !(KillMessage.command(msg) || Watermark.command(msg)));
         ClientLifecycleEvents.CLIENT_STARTED.register(Accounts::applyOnStart);
         // TEST: splash hook disabled
         // ClientLifecycleEvents.CLIENT_STARTED.register(SplashHook::tryWrap);
@@ -41,6 +45,19 @@ public class Nelose implements ClientModInitializer {
             new KeyBinding("key.nelose.snowball", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, cat));
         Features.fastPotion = KeyBindingHelper.registerKeyBinding(
             new KeyBinding("key.nelose.potion", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, cat));
+
+        BedWars.fireballKey = KeyBindingHelper.registerKeyBinding(
+            new KeyBinding("key.nelose.bw_fireball", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, cat));
+        BedWars.eggKey = KeyBindingHelper.registerKeyBinding(
+            new KeyBinding("key.nelose.bw_egg", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, cat));
+        BedWars.waterKey = KeyBindingHelper.registerKeyBinding(
+            new KeyBinding("key.nelose.bw_water", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, cat));
+        BedWars.blocksKey = KeyBindingHelper.registerKeyBinding(
+            new KeyBinding("key.nelose.bw_blocks", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, cat));
+        BedWars.swordKey = KeyBindingHelper.registerKeyBinding(
+            new KeyBinding("key.nelose.bw_sword", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, cat));
+        BedWars.pickKey = KeyBindingHelper.registerKeyBinding(
+            new KeyBinding("key.nelose.bw_pickaxe", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, cat));
 
         // replace the vanilla main menu with ours
         ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
@@ -64,6 +81,7 @@ public class Nelose implements ClientModInitializer {
             // SplashHook.tryWrap(client);
             Features.tick(client);
             Binds.tick(client);
+            FreeLook.tick(client);
             while (openKey.wasPressed()) {
                 if (client.currentScreen == null) client.setScreen(new NeloseScreen());
             }

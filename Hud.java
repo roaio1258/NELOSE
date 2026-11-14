@@ -34,13 +34,21 @@ public final class Hud {
         atmosphere(c, mc);
         Esp.render(c, delta);
         World2D.render(c, delta);
+        BedWars.render(c, mc, tr, delta);
+        Marks.render(c, mc, tr, delta);
         if (Modules.CROSSHAIR.on) crosshair(c, mc, a1, a2);
         if (Modules.HEALTH_INDICATOR.on) healthIndicator(c, mc, tr, a1, a2);
         if (Modules.MACE_HELPER.on) maceHud(c, mc, tr);
         if (Modules.HIT_MARKER.on) hitMarker(c, mc);
+        if (Modules.PVP_TIMER.on) PvpTimer.render(c, mc, tr);
         infoPanel(c, mc, tr);
         if (Modules.MODULE_LIST.on) moduleList(c, mc, tr, a1, a2);
         if (Modules.KEYSTROKES.on) keystrokes(c, mc, tr, a1);
+        PvpHud.render(c, mc, tr, a1, a2);
+        if (Modules.KEYBINDS.on) Extras.keybinds(c, mc, tr, a1);
+        if (Modules.INVENTORY_HUD.on) Extras.inventory(c, mc, tr, a1);
+        Extras.notifications(c, mc, tr, a1);
+        if (Modules.POTION_EFFECTS.on) EffectsHud.render(c, mc, tr, a1, a2);
         if (Modules.ARMOR_HUD.on) armor(c, mc, tr);
         if (Modules.ITEM_COUNTER.on) itemCounter(c, mc, tr);
         if (Modules.TARGET_HUD.on) target(c, mc, tr, a1, a2);
@@ -66,6 +74,12 @@ public final class Hud {
         List<String[]> rows = new ArrayList<>();
         if (Modules.COORDS.on) rows.add(new String[]{"XYZ", String.format(Locale.ROOT, Modules.COORDS.b("Decimals") ? "%.1f  %.1f  %.1f" : "%.0f  %.0f  %.0f",
             mc.player.getX(), mc.player.getY(), mc.player.getZ())});
+        if (Modules.COORDS.on && Modules.COORDS.b("Nether coords")) {
+            boolean nether = mc.world != null && mc.world.getRegistryKey() == net.minecraft.world.World.NETHER;
+            double k = nether ? 8.0 : 1.0 / 8.0;
+            rows.add(new String[]{nether ? "Over" : "Nether", String.format(Locale.ROOT, "%.0f  %.0f", mc.player.getX() * k, mc.player.getZ() * k)});
+        }
+        if (Modules.SESSION.on) rows.add(new String[]{"Session", Extras.session()});
         if (Modules.DIRECTION.on) {
             String d = mc.player.getHorizontalFacing().asString();
             rows.add(new String[]{"Facing", Character.toUpperCase(d.charAt(0)) + d.substring(1)});
@@ -257,6 +271,7 @@ public final class Hud {
         Theme.round(c, rcx - 12, rcy - 12, 24, 24, 12, Theme.alpha(ring, 0.95f));
         Theme.round(c, rcx - 10, rcy - 10, 20, 20, 10, 0xFF0E1220);
         c.drawText(tr, num, rcx - tr.getWidth(num) / 2, rcy - 4, Theme.TEXT, false);
+        if (le != null && Modules.TARGET_HUD.b("Gear")) PvpHud.gear(c, tr, le, x, y + h + 3);
         HudLayout.end(c);
     }
 

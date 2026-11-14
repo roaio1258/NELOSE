@@ -5,5 +5,11 @@
   "key.nelose.pearl": "Click Pearl",
   "key.nelose.firework": "Fast Use: Firework",
   "key.nelose.snowball": "Fast Use: Snowball",
-  "key.nelose.potion": "Fast Use: Splash Potion"
+  "key.nelose.potion": "Fast Use: Splash Potion",
+  "key.nelose.bw_fireball": "BedWars: Fireball",
+  "key.nelose.bw_egg": "BedWars: Bridge Egg",
+  "key.nelose.bw_water": "BedWars: Water Bucket",
+  "key.nelose.bw_blocks": "BedWars: Select Blocks",
+  "key.nelose.bw_sword": "BedWars: Select Sword",
+  "key.nelose.bw_pickaxe": "BedWars: Select Pickaxe"
 }

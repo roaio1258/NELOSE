@@ -88,6 +88,11 @@ public final class Features {
         atmosphere(mc);
         keys(mc);
         mace(mc);
+        BedWars.tick(mc);
+        AutoClicker.tick(mc);
+        Marks.tick(mc);
+        PvpTimer.tick(mc);
+        KillMessage.tick(mc);
         FakePlayer.tick(mc);
 
         // Smooth zoom is done per frame in Zoom (render hook); this tick version is only a fallback
@@ -120,6 +125,8 @@ public final class Features {
         targetTime = hitTime = System.currentTimeMillis();
         killDone = false;
         FakePlayer.onHit(e);
+        PvpTimer.onHit(e);
+        PvpHud.onHit(e);
         hitSound(mc);
         if (Modules.HIT_PARTICLES.on) {
             ThreadLocalRandom r = ThreadLocalRandom.current();
@@ -173,12 +180,12 @@ public final class Features {
     }
 
     // ---------- key actions: pearl / fast use ----------
-    private static int hotbarSlot(MinecraftClient mc, Item item) {
+    static int hotbarSlot(MinecraftClient mc, Item item) {
         for (int i = 0; i < 9; i++) if (mc.player.getInventory().getStack(i).isOf(item)) return i;
         return -1;
     }
 
-    private static void useFromHotbar(MinecraftClient mc, Item item, boolean back) {
+    static void useFromHotbar(MinecraftClient mc, Item item, boolean back) {
         int slot = hotbarSlot(mc, item);
         if (slot < 0 || mc.interactionManager == null) return;
         var inv = mc.player.getInventory();

@@ -28,6 +28,7 @@ public final class Config {
                 p.setProperty(k + "s." + s.name, v);
             }
         }
+        p.setProperty("wm.text", Watermark.text);
         p.setProperty("win.dx", String.valueOf(NeloseScreen.winDX));
         p.setProperty("win.dy", String.valueOf(NeloseScreen.winDY));
         for (HudLayout.Item it : HudLayout.ITEMS.values()) {
@@ -47,9 +48,10 @@ public final class Config {
             Theme.preset = Integer.parseInt(p.getProperty("theme", String.valueOf(Theme.preset)));
             Season.current = Math.max(0, Math.min(Season.NAMES.length - 1,
                 Integer.parseInt(p.getProperty("season", String.valueOf(Season.current)))));
+            Watermark.text = p.getProperty("wm.text", Watermark.text);
             NeloseScreen.winDX = Float.parseFloat(p.getProperty("win.dx", "0"));
             NeloseScreen.winDY = Float.parseFloat(p.getProperty("win.dy", "0"));
-            for (String id : new String[]{"watermark", "info", "modulelist", "keystrokes", "armor", "items", "target"}) {
+            for (String id : new String[]{"watermark", "info", "modulelist", "keystrokes", "armor", "items", "target", "bwres", "bwblocks", "bwradar", "pvp", "effects", "keybinds", "inventory", "combo"}) {
                 HudLayout.Item it = HudLayout.get(id);
                 it.dx = Float.parseFloat(p.getProperty("hud." + id + ".dx", "0"));
                 it.dy = Float.parseFloat(p.getProperty("hud." + id + ".dy", "0"));
