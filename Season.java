@@ -430,6 +430,347 @@ public final class Season {
         }
     }
 
+    // ---------------------------------------------------------------- TIV 2 (Tornado theme)
+    //
+    // The vehicle is drawn in "du" (design units): 120 du = the length of the hull, y goes up from the ground.
+    // tvK is how many screen pixels one du is, so the whole drawing scales with the GUI. All shapes are real
+    // polygons / ellipses / lines (scanline filled), shaded with gradients and lit by the lightning.
+
+    private static float tvK = 1f, tvA = 1f;          // pixels per du, theme alpha
+    private static double tvX0 = 0, tvGY = 0, tvDY = 0; // screen x of du 0, screen y of the ground, vertical offset of the hull (suspension)
+
+    private static int tx(double x) { return (int) Math.round(tvX0 + x * tvK); }
+    private static int ty(double y) { return (int) Math.round(tvGY - (y + tvDY) * tvK); }
+
+    private static double tivSmooth(double p) { p = Math.max(0, Math.min(1, p)); return p * p * (3 - 2 * p); }
+
+    /** Bumper position over the 20 s loop: drives in, stays while it is anchored, then backs out. */
+    private static double tivX(double ct, int xfT, int xfOff) {
+        if (ct < 7) { double p = ct / 7; p = 1 - (1 - p) * (1 - p) * (1 - p); return xfOff + (xfT - xfOff) * p; }
+        if (ct < 15.5) return xfT;
+        double p = (ct - 15.5) / 4.5; p = Math.max(0, Math.min(1, p));
+        return xfT + (xfOff - xfT) * p * p;
+    }
+
+    private static final String[][] TIV_PIX = {
+        {"111", "010", "010", "010", "010"},
+        {"111", "010", "010", "010", "111"},
+        {"101", "101", "101", "101", "010"},
+        {"111", "001", "111", "100", "111"}};
+
+    private static final double[] TV_BODY_X = {2, 2, 6, 9, 61, 63, 67, 86, 100, 112, 118, 120, 120};
+    private static final double[] TV_BODY_Y = {17, 39, 45, 47, 47, 52, 57, 57, 42, 37, 32, 27, 17};
+    private static final double[] TV_WIN_X = {69, 84.5, 95.5, 69};
+    private static final double[] TV_WIN_Y = {53, 53, 43.5, 43.5};
+
+    /** Rectangle in du, never thinner than one pixel. */
+    private static void tvRect(DrawContext c, double x0, double y0, double x1, double y1, int col, float a) {
+        int px0 = tx(x0), px1 = tx(x1), py0 = ty(y1), py1 = ty(y0);
+        if (px1 <= px0) px1 = px0 + 1;
+        if (py1 <= py0) py1 = py0 + 1;
+        c.fill(px0, py0, px1, py1, Theme.alpha(col, a * tvA));
+    }
+
+    /** Polygon with a vertical gradient from colTop (highest point) to colBot (lowest point). */
+    private static void tvPoly(DrawContext c, double[] xs, double[] ys, int colTop, int colBot, float a) {
+        int n = xs.length;
+        double ymin = Double.MAX_VALUE, ymax = -Double.MAX_VALUE;
+        for (double y : ys) { ymin = Math.min(ymin, y); ymax = Math.max(ymax, y); }
+        double[] hit = new double[n];
+        for (int r = ty(ymax); r <= ty(ymin); r++) {
+            double y = (tvGY - r - 0.5) / tvK - tvDY;
+            int m = 0;
+            for (int i = 0; i < n; i++) {
+                int j = (i + 1) % n;
+                double ya = ys[i], yb = ys[j];
+                if ((ya <= y && y < yb) || (yb <= y && y < ya)) hit[m++] = xs[i] + (y - ya) * (xs[j] - xs[i]) / (yb - ya);
+            }
+            java.util.Arrays.sort(hit, 0, m);
+            float tt = ymax > ymin ? (float) Math.max(0, Math.min(1, (ymax - y) / (ymax - ymin))) : 0f;
+            int col = Theme.alpha(colTop == colBot ? colTop : Theme.mix(colTop, colBot, tt), a * tvA);
+            for (int q = 0; q + 1 < m; q += 2) {
+                int xa = tx(hit[q]), xb = tx(hit[q + 1]);
+                if (xb > xa) c.fill(xa, r, xb, r + 1, col);
+            }
+        }
+    }
+
+    /** Ellipse, optionally cut to the band clipMin..clipMax (used for half domes and wheel arches). */
+    private static void tvEll(DrawContext c, double cx, double cy, double rx, double ry, int col, float a, double clipMin, double clipMax) {
+        int colA = Theme.alpha(col, a * tvA);
+        for (int r = ty(Math.min(cy + ry, clipMax)); r <= ty(Math.max(cy - ry, clipMin)); r++) {
+            double y = (tvGY - r - 0.5) / tvK - tvDY;
+            double dy = (y - cy) / ry;
+            if (Math.abs(dy) > 1 || y < clipMin || y > clipMax) continue;
+            double half = rx * Math.sqrt(1 - dy * dy);
+            int xa = tx(cx - half), xb = tx(cx + half);
+            if (xb <= xa) xb = xa + 1;
+            c.fill(xa, r, xb, r + 1, colA);
+        }
+    }
+
+    private static void tvDisc(DrawContext c, double cx, double cy, double r, int col, float a) {
+        tvEll(c, cx, cy, r, r, col, a, -1e9, 1e9);
+    }
+
+    /** Line made of small squares (use opaque colors, overlapping squares would stack the alpha). */
+    private static void tvLine(DrawContext c, double x0, double y0, double x1, double y1, double th, int col, float a) {
+        int px0 = tx(x0), py0 = ty(y0), px1 = tx(x1), py1 = ty(y1);
+        int s = Math.max(1, (int) Math.round(th * tvK));
+        int n = Math.max(Math.abs(px1 - px0), Math.abs(py1 - py0));
+        int colA = Theme.alpha(col, a * tvA);
+        for (int i = 0; i <= n; i++) {
+            double p = n == 0 ? 0 : i / (double) n;
+            int x = (int) Math.round(px0 + (px1 - px0) * p) - s / 2, y = (int) Math.round(py0 + (py1 - py0) * p) - s / 2;
+            c.fill(x, y, x + s, y + s, colA);
+        }
+    }
+
+    /** Heavy off-road wheel: tread blocks, sidewall, steel rim, five spokes and a hub. rot is in radians. */
+    private static void tvWheel(DrawContext c, double cx, double rot, float fl) {
+        double R = 11, cy = R;
+        tvDisc(c, cx, cy, R, 0xFF040506, 1f);
+        tvDisc(c, cx, cy, R - 1.7, 0xFF111418, 1f);
+        for (int i = 0; i < 16; i++) {          // tread blocks around the edge
+            double an = rot + i * Math.PI / 8;
+            double bx = cx + Math.cos(an) * (R - 0.9), by = cy - Math.sin(an) * (R - 0.9);
+            tvRect(c, bx - 0.8, by - 0.8, bx + 0.8, by + 0.8, i % 2 == 0 ? 0xFF2A3036 : 0xFF0A0C0E, 1f);
+        }
+        tvDisc(c, cx, cy, 6.7, Theme.mix(0xFF4F5A65, 0xFFD0DEF0, fl * 0.7f), 1f);   // rim lip
+        tvDisc(c, cx, cy, 5.5, 0xFF1B2127, 1f);                                   // dish
+        for (int i = 0; i < 5; i++) {
+            double an = rot + i * 2 * Math.PI / 5;
+            tvLine(c, cx, cy, cx + Math.cos(an) * 5.3, cy - Math.sin(an) * 5.3, 1.6, 0xFF76828E, 1f);
+        }
+        tvDisc(c, cx, cy, 2.4, 0xFFA3AFBB, 1f);
+        tvDisc(c, cx, cy, 1.2, 0xFF262C32, 1f);
+        tvRect(c, cx - 4.6, cy + 3.0, cx - 3.0, cy + 4.6, 0xFFFFFFFF, 0.10f + fl * 0.2f);   // glint on the rim
+    }
+
+    /**
+     * TIV 2, the armored Tornado Intercept Vehicle: black steel hull with sloped plates, bull bar, amber stencil,
+     * a rotating IMAX camera dome, spinning radar dish and anemometer, light bar, three heavy axles, armored skirts
+     * and hydraulic anchor spikes. It drives up to the funnel, anchors, films it, then backs away.
+     */
+    private static void tiv(DrawContext c, int w, int h, int top, double t, float f) {
+        int u = Math.max(1, Math.round(h / 140f));
+        double ct = t % 20.0;
+        int xfT = (int) (w * 0.80) - 18 * u, xfOff = -6 * u;
+        double xf = tivX(ct, xfT, xfOff);
+        double vel = (xf - tivX(Math.max(0, ct - 0.05), xfT, xfOff)) / 0.05, speed = Math.abs(vel);
+        double d = ct < 7 ? 0 : ct < 8.5 ? tivSmooth((ct - 7) / 1.5) : ct < 14 ? 1 : ct < 15.5 ? 1 - tivSmooth((ct - 14) / 1.5) : 0;
+        int gy = top + 3;
+        float fl = flash();
+
+        tvK = 0.41f * u; tvA = f; tvGY = gy;
+        tvX0 = xf - 48 * u;
+        if (d > 0.5) tvX0 += (Math.sin(t * 52) * 0.5 + Math.sin(t * 31) * 0.3) * d * tvK;   // wind shakes it
+        double drop = d * 3.6;                                                           // air suspension lowers the hull
+        double bob = Math.min(1.0, speed / 45.0) * Math.sin(t * 26) * 0.5;               // bumpy ride while driving
+        boolean fwd = vel > 0;
+
+        int sTop = Theme.mix(0xFF4A5560, 0xFFE2EEFF, fl * 0.8f);   // lit edges
+        int sMid = Theme.mix(0xFF222A31, 0xFF8196AE, fl * 0.55f);  // upper hull
+        int sLow = Theme.mix(0xFF0B0D10, 0xFF39475A, fl * 0.45f);  // lower hull
+        int dark = 0xFF07090B, amber = 0xFFFFB347;
+        boolean blink = Math.sin(t * 9) > 0;
+
+        // ---------------- shadow, wet-ground reflection, dust
+        tvDY = 0;
+        Theme.round(c, tx(-2), gy - 1, (int) (126 * tvK), 4, 2, Theme.alpha(0xFF000000, 0.45f * f));
+        Theme.round(c, tx(112), gy, (int) (44 * tvK), 2, 1, Theme.alpha(0xFFFFE6A0, 0.10f * f));
+        if (speed > 8) {
+            float kk = (float) Math.min(1.0, speed / 60.0);
+            for (int i = 0; i < 6; i++) {
+                int px = fwd ? tx(6) - (int) (i * 5 * tvK) : tx(116) + (int) (i * 5 * tvK);
+                puff(c, px, gy - 2 - i, 3 + i * u, 0xFF6B6D58, f * 0.42f * kk * (1f - i * 0.15f), 0f);
+            }
+        }
+
+        // ---------------- hull
+        tvDY = bob - drop;
+        tvRect(c, 5, 13, 115, 17.5, dark, 1f);                                // dark underbody between the axles
+        tvPoly(c, TV_BODY_X, TV_BODY_Y, sMid, sLow, 1f);
+        tvLine(c, 9, 46.4, 61, 46.4, 1.2, sTop, 1f);                           // lit edges of every plate
+        tvLine(c, 63.5, 56.4, 86, 56.4, 1.2, sTop, 1f);
+        tvLine(c, 86.5, 56, 100, 42.5, 1.2, sTop, 1f);
+        tvLine(c, 100, 41.6, 112, 36.6, 1.2, sTop, 0.95f);
+        tvLine(c, 112, 36.6, 118, 31.8, 1.2, sTop, 0.85f);
+        tvLine(c, 2.6, 18, 2.6, 38.4, 1.1, sTop, 0.55f);
+        tvLine(c, 3, 40, 6.4, 44.6, 1.1, sTop, 0.55f);
+        tvRect(c, 3, 40.1, 61, 40.8, dark, 0.85f);                              // armor belt groove
+        tvRect(c, 3, 39.4, 61, 40.0, sTop, 0.30f);
+        for (int sx : new int[]{6, 57}) {                                       // plate seams with a lit edge
+            tvRect(c, sx, 21.5, sx + 0.9, 46, dark, 0.9f);
+            tvRect(c, sx + 0.9, 21.5, sx + 1.7, 46, sTop, 0.30f);
+        }
+        for (int i = 0; i < 8; i++) {                                           // rivets
+            tvRect(c, 9 + i * 6.8, 43.2, 10.1 + i * 6.8, 44.3, sTop, 0.75f);
+            tvRect(c, 9 + i * 6.8, 22.2, 10.1 + i * 6.8, 23.3, sTop, 0.55f);
+        }
+        tvRect(c, 62.4, 17.5, 63.1, 51, dark, 0.8f);                            // cab seams, door and handle
+        tvRect(c, 66.4, 17.5, 67.1, 52, dark, 0.7f);
+        tvRect(c, 97.3, 17.5, 98.0, 41, dark, 0.7f);
+        tvRect(c, 88, 38.4, 93.5, 39.8, sTop, 0.9f);
+        tvRect(c, 88, 37.8, 93.5, 38.4, dark, 0.7f);
+
+        // amber hazard band along the sill
+        tvRect(c, 2, 17, 120, 21.2, dark, 1f);
+        for (int sx = 3; sx + 9 <= 120; sx += 12)
+            tvPoly(c, new double[]{sx, sx + 6, sx + 9, sx + 3}, new double[]{17, 17, 21.2, 21.2}, 0xFFE0A02A, 0xFFB5760F, 0.95f);
+
+        // "TIV 2" stencil on the rear box: recessed plate, dark outline, glowing amber
+        tvRect(c, 7, 24.4, 50.6, 39.8, dark, 0.35f);
+        tvRect(c, 7, 39.3, 50.6, 39.8, sTop, 0.25f);
+        double g = 2.3;
+        double[] gx = {9, 18.5, 28, 41.5};
+        float pulse = 0.92f + 0.08f * (float) Math.sin(t * 2);
+        for (int pass = 0; pass < 2; pass++)
+            for (int gi = 0; gi < 4; gi++)
+                for (int r = 0; r < 5; r++)
+                    for (int q = 0; q < 3; q++)
+                        if (TIV_PIX[gi][r].charAt(q) == '1') {
+                            double x0 = gx[gi] + q * g, y1 = 38 - r * g;
+                            if (pass == 0) tvRect(c, x0 - 0.5, y1 - g - 0.5, x0 + g + 0.5, y1 + 0.5, dark, 0.85f);
+                            else tvRect(c, x0, y1 - g, x0 + g, y1, amber, pulse);
+                        }
+
+        // side window: gradient glass, reflections, armor bar, frame
+        tvPoly(c, TV_WIN_X, TV_WIN_Y, Theme.mix(0xFF2F5666, 0xFFDCE8FF, fl * 0.85f), Theme.mix(0xFF03080B, 0xFF7C93AE, fl * 0.6f), 1f);
+        tvPoly(c, new double[]{73, 76.5, 71.5, 69}, new double[]{53, 53, 43.5, 43.5}, 0xFFFFFFFF, 0xFFFFFFFF, 0.10f + 0.25f * fl);
+        tvPoly(c, new double[]{78, 79.6, 76.2, 74.6}, new double[]{53, 53, 43.5, 43.5}, 0xFFFFFFFF, 0xFFFFFFFF, 0.07f + 0.2f * fl);
+        tvRect(c, 81, 43.5, 82.4, 53, 0xFF05070A, 1f);
+        tvLine(c, 69, 53.2, 84.5, 53.2, 1.1, 0xFF05070A, 1f);
+        tvLine(c, 84.5, 53.2, 95.8, 43.3, 1.1, 0xFF05070A, 1f);
+        tvLine(c, 69, 43.2, 95.8, 43.2, 1.1, 0xFF05070A, 1f);
+        tvLine(c, 69, 43.2, 69, 53.2, 1.1, 0xFF05070A, 1f);
+
+        // armored nose: grille, headlight, bull bar cage
+        tvRect(c, 110.5, 18.4, 119.7, 25, dark, 1f);
+        for (int s = 0; s < 3; s++) tvRect(c, 111.2, 19.5 + s * 2, 119.2, 20.1 + s * 2, 0xFF3A444E, 1f);
+        tvRect(c, 112.4, 25.9, 119.4, 30.1, dark, 1f);
+        tvRect(c, 113, 26.6, 118.8, 29.4, Theme.mix(0xFFFFF2B0, 0xFFFFFFFF, fl * 0.5f), 1f);
+        tvRect(c, 113, 28.6, 118.8, 29.4, 0xFFFFFFFF, 0.5f);
+        int cage = 0xFF2B343C, cageHi = 0xFF5B6874;
+        tvLine(c, 119.5, 15.5, 127, 16.8, 2.0, cage, 1f);
+        tvLine(c, 127.2, 16.8, 127.8, 28.2, 2.0, cage, 1f);
+        tvLine(c, 127.6, 28.4, 119.8, 32.6, 2.0, cage, 1f);
+        tvLine(c, 119.8, 22.2, 127.4, 22.4, 1.8, cage, 1f);
+        tvLine(c, 119.5, 15.0, 127, 16.2, 0.8, cageHi, 1f);
+        tvLine(c, 127.6, 28.9, 120, 33.1, 0.8, cageHi, 1f);
+
+        // exhaust stack and its smoke
+        tvRect(c, 58.4, 47, 60.8, 54.6, sMid, 1f);
+        tvRect(c, 58.4, 47, 59.2, 54.6, sTop, 0.6f);
+        tvRect(c, 58, 54.3, 61.2, 55.4, dark, 1f);
+        for (int i = 0; i < 5; i++) {
+            double k = (t * 0.45 + i / 5.0) % 1.0;
+            double sx = 59.6 + (d > 0.5 ? 1 : -1) * k * 16 + Math.sin(k * 6 + i) * 1.2;
+            tvDisc(c, sx, 56 + k * 13, 1.3 + k * 3.6, 0xFF454B4E, 0.40f * (1f - (float) k));
+        }
+
+        // light bar with alternating amber flashers
+        tvRect(c, 67, 57, 85.4, 58.7, dark, 1f);
+        tvRect(c, 68, 58.4, 76.2, 60.6, blink ? 0xFFFFA500 : 0xFF5A3A00, 1f);
+        tvRect(c, 76.8, 58.4, 85, 60.6, blink ? 0xFF5A3A00 : 0xFFFFA500, 1f);
+        tvDisc(c, blink ? 72 : 81, 59.5, 6.5, 0xFFFFA500, 0.08f);
+
+        // ---------------- roof: radar dish, antennas, IMAX dome
+        double a2 = t * 2.2;
+        tvRect(c, 48.4, 47, 49.6, 56, 0xFF55606B, 1f);
+        tvEll(c, 49, 58, Math.max(0.8, Math.abs(Math.cos(a2)) * 5.0) + 0.7, 5.2, 0xFF11151A, 1f, -1e9, 1e9);
+        tvEll(c, 49, 58, Math.max(0.8, Math.abs(Math.cos(a2)) * 5.0), 4.5, Theme.mix(0xFFC9D2DA, 0xFFFFFFFF, fl * 0.6f), 1f, -1e9, 1e9);
+        double sway = Math.sin(t * 6) * (0.8 + 2.2 * d);
+        tvLine(c, 55.2, 47, 55.2 + sway, 68, 0.8, 0xFFB0BAC4, 1f);
+        tvDisc(c, 55.2 + sway, 68.4, 1.0, 0xFFFF5A4A, 1f);
+
+        int domeBase = Theme.mix(0xFF181D22, 0xFF6E8199, fl * 0.5f), domeMid = Theme.mix(0xFF2A333C, 0xFFB8CBE4, fl * 0.6f);
+        tvRect(c, 14, 46.6, 40, 50, dark, 1f);
+        tvRect(c, 14, 49.4, 40, 50, sTop, 0.6f);
+        tvEll(c, 27, 50, 12.5, 10.5, domeBase, 1f, 50, 99);
+        tvEll(c, 24.5, 51.5, 8.5, 7.5, domeMid, 1f, 50, 99);
+        tvDisc(c, 21.5, 56.5, 2.2, 0xFFFFFFFF, 0.30f + 0.4f * fl);
+        double aim = d > 0.2 ? 0.20 + 0.05 * Math.sin(t * 3) : 0.15 + 0.25 * Math.sin(t * 0.8);   // locks onto the funnel
+        double bx = 27 + Math.cos(aim) * 12.5, by = 53 + Math.sin(aim) * 12.5;
+        tvDisc(c, 27, 53, 4.2, 0xFF0B0E12, 1f);
+        tvLine(c, 27, 53, bx, by, 4.4, 0xFF0F1318, 1f);
+        tvLine(c, 27, 54.4, bx, by + 1.4, 1.1, sTop, 1f);
+        tvDisc(c, bx, by, 3.3, 0xFF030405, 1f);
+        tvDisc(c, bx, by, 2.1, 0xFF2E6F86, 1f);
+        tvDisc(c, bx + 0.3, by + 0.3, 1.2, 0xFF9DEBFF, 0.7f + 0.3f * (float) Math.sin(t * 5));
+        tvDisc(c, 33, 57, 1.3, blink ? 0xFFFF3B30 : 0xFF551410, 1f);                          // REC light
+
+        double an = t * 14, ax = Math.cos(an) * 4.5;                                           // mast with anemometer
+        tvRect(c, 10.4, 47, 11.8, 71, 0xFF8B97A3, 1f);
+        tvLine(c, 11.1 - ax, 68, 11.1 + ax, 68, 0.9, 0xFFE6EAF0, 1f);
+        tvDisc(c, 11.1 + ax, 68, 1.6, 0xFFE6EAF0, Math.sin(an) > 0 ? 1f : 0.6f);
+        tvDisc(c, 11.1 - ax, 68, 1.6, 0xFFE6EAF0, Math.sin(an) > 0 ? 0.6f : 1f);
+        tvDisc(c, 11.1, 71.6, 1.0, blink ? 0xFFFF3B30 : 0xFF551410, 1f);
+
+        // ---------------- headlight beam (many soft slices)
+        tvDY = 0;
+        tvDisc(c, 120, 28 - drop, 6, 0xFFFFF2B0, 0.12f);
+        for (int i = 0; i < 12; i++) {
+            double bx0 = 121 + i * 4.4, half = 1.6 + i * 0.95, cyb = 28 - drop - i * 0.7;
+            float al = 0.20f * (float) Math.pow(1 - i / 12.0, 1.4);
+            tvRect(c, bx0, cyb - half, bx0 + 4.8, cyb + half, 0xFFFFF2B0, al);
+        }
+
+        // ---------------- wheel arches and wheels (wheels sit on the ground, the hull floats on them)
+        tvDY = bob - drop;
+        double[] wx = {18, 46, 98};
+        for (double wc : wx) tvEll(c, wc, 11, 13.3, 13.3, 0xFF030405, 1f, 17.2, 99);
+        tvDY = 0;
+        for (double wc : wx) tvWheel(c, wc, xf / (11 * tvK), fl);
+        if (speed > 8) {                                                                       // water thrown by the tires
+            float kk = (float) Math.min(1.0, speed / 60.0);
+            for (double wc : wx)
+                for (int i = 0; i < 4; i++) {
+                    double life = (t * 5 + wc * 0.13 + i * 0.27) % 1.0;
+                    double dx = (fwd ? -1 : 1) * life * 14;
+                    tvRect(c, wc + dx, 4 + Math.sin(life * Math.PI) * 9, wc + dx + 1.2, 5.2 + Math.sin(life * Math.PI) * 9, 0xFFB8D0E8, 0.5f * (1f - (float) life) * kk);
+                }
+        }
+
+        // ---------------- anchored: armored skirts come down, hydraulic spikes drive into the ground
+        if (d > 0.01) {
+            double hull = 17 - drop, sb = hull * (1 - d);
+            tvDY = 0;
+            if (hull - sb > 1.5) {
+                tvPoly(c, new double[]{5, 116, 116, 5}, new double[]{hull, hull, sb, sb}, 0xFF29323A, 0xFF0B0E11, 1f);
+                tvRect(c, 5, hull - 0.8, 116, hull, sTop, 0.5f);
+                tvRect(c, 5, sb, 116, sb + 1.3, 0xFFC8841A, 0.95f);
+                tvRect(c, 5, sb + 1.3, 116, sb + 2.3, dark, 1f);
+                for (double sx = 10; sx < 115; sx += 9) tvRect(c, sx, sb + 2.3, sx + 0.9, hull - 0.8, dark, 0.8f);
+            }
+            for (double sx : new double[]{12, 60, 106}) {
+                double tip = hull - 1 - d * (hull + 3.5);
+                tvRect(c, sx - 2.2, hull - 1, sx + 2.2, hull + 6, 0xFF3A444E, 1f);
+                tvRect(c, sx - 2.2, hull + 5.2, sx + 2.2, hull + 6, sTop, 0.7f);
+                tvRect(c, sx - 1.3, tip + 3, sx + 1.3, hull - 1, 0xFF8C98A4, 1f);
+                tvRect(c, sx - 1.3, tip + 3, sx - 0.5, hull - 1, 0xFFE6EAF0, 1f);
+                tvPoly(c, new double[]{sx - 1.3, sx + 1.3, sx}, new double[]{tip + 3, tip + 3, tip}, 0xFFE6EAF0, 0xFF8C98A4, 1f);
+                if (d < 0.99) tvDisc(c, sx, hull + 6.6, 1.1, blink ? 0xFFFFA500 : 0xFF5A3A00, 1f);
+                if (d > 0.3 && d < 0.98)
+                    puff(c, tx(sx), gy - 3, 2 + (int) ((1 - d) * 4 * u), 0xFF6B6D58, f * 0.5f * (float) (1 - d), 0f);
+            }
+        }
+
+        // ---------------- inflow debris racing past toward the funnel
+        if (d > 0.01) {
+            float ds = (float) d;
+            int[] cols = {0xFF8A7B3A, 0xFF0B0F0C, 0xFF6C8A3A, 0xFFE0E4E8};
+            for (int i = 0; i < 14; i++) {
+                double span = 80.0 * u;
+                int px = (int) (xfT - 70 * u + ((t * (60 + i * 9) + i * 37.0 * u) % span));
+                int py = gy - (3 + (i * 7) % 26) * u + (int) Math.round(Math.sin(t * 6 + i) * u);
+                int sz = Math.max(1, u) * (i % 4 == 0 ? 2 : 1);
+                c.fill(px, py, px + sz, py + Math.max(1, u), Theme.alpha(cols[i % 4], f * ds * 0.85f));
+            }
+        }
+        tvDY = 0;
+    }
+
     // ---------------------------------------------------------------- ground
 
     public static void ground(DrawContext c, int w, int h, float f) {
@@ -462,6 +803,7 @@ public final class Season {
                 c.fill(x, top - hh, x + 1, top, 0xFF3A4A22);
                 c.fill(x + lean, top - hh - 1, x + lean + 1, top - hh + 1, 0xFF8A7B3A);
             }
+            if (w >= 300) tiv(c, w, h, top, t, f);   // TIV 2 intercepts the tornado
         } else {
             c.fillGradient(0, top, w, top + gh, 0xFF4CAF50, 0xFF2E7D32);
             c.fill(0, top, w, top + 2, 0xFF7ED957);

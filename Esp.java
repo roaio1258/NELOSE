@@ -4,7 +4,9 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.RaycastContext;
 
 /**
  * 2D overlay ESP. World points are projected to the screen with plain math, so no
@@ -67,6 +69,22 @@ public final class Esp {
         return (x >>> 11) * (1.0 / (1L << 53));
     }
 
+    private static float vis;
+    private static Entity visFor;
+
+    /** True when at least one of a few points on the target can be seen from the camera (no block in between). */
+    private static boolean canSee(Entity t, Vec3d p, double h) {
+        Vec3d eye = mc.player.getCameraPosVec(1f);
+        double[] ys = {0.12, 0.5, 0.88};
+        for (double k : ys) {
+            Vec3d pt = new Vec3d(p.x, p.y + h * k, p.z);
+            var res = mc.world.raycast(new RaycastContext(eye, pt, RaycastContext.ShapeType.COLLIDER,
+                RaycastContext.FluidHandling.NONE, mc.player));
+            if (res.getType() == HitResult.Type.MISS) return true;
+        }
+        return false;
+    }
+
     public static void render(DrawContext c, float delta) {
         mc = MinecraftClient.getInstance();
         long now = System.currentTimeMillis();
@@ -85,6 +103,12 @@ public final class Esp {
         boolean looked = mc.targetedEntity == t;
         float fade = looked ? 1f : (float) Math.max(0, Math.min(1, (3000 - (now - Features.targetTime)) / 600.0));
         if (fade <= 0.01f) return;
+        // hide everything while the target is behind a wall; fade in/out instead of popping
+        boolean seen = canSee(t, p, h);
+        if (visFor != t) { visFor = t; vis = seen ? 1f : 0f; }
+        vis += ((seen ? 1f : 0f) - vis) * 0.25f;
+        if (vis <= 0.02f) return;
+        fade *= vis;
         int a1 = Theme.accent(), a2 = Theme.accent2();
 
         if (Modules.TARGET_ESP.on) {

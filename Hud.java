@@ -3,6 +3,8 @@ package nelose;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.PlayerSkinDrawer;
+import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.item.Item;
@@ -204,26 +206,57 @@ public final class Hud {
     }
 
     // ---------- target hud ----------
+    /** Card with the target's head on the left, name and health bar in the middle, and a health ring that is always shown. */
     private static void target(DrawContext c, MinecraftClient mc, TextRenderer tr, int a1, int a2) {
         String name; float hp, max, dist;
-        if (mc.targetedEntity instanceof LivingEntity le) {
-            name = le.getName().getString();
-            hp = le.getHealth(); max = Math.max(1f, le.getMaxHealth()); dist = mc.player.distanceTo(le);
+        LivingEntity le = null;
+        if (mc.targetedEntity instanceof LivingEntity t) {
+            le = t;
+            name = t.getName().getString();
+            hp = t.getHealth(); max = Math.max(1f, t.getMaxHealth()); dist = mc.player.distanceTo(t);
         } else if (mc.currentScreen instanceof NeloseScreen || mc.currentScreen instanceof net.minecraft.client.gui.screen.ChatScreen) {   // preview while moving widgets
             name = "Target"; hp = 20f; max = 20f; dist = 3.5f;
         } else return;
+        float frac = Math.max(0f, Math.min(1f, hp / max));
         String hpText = String.format(Locale.ROOT, "%.1f / %.0f", hp, max)
             + (Modules.TARGET_HUD.b("Distance") ? String.format(Locale.ROOT, "  %.1fm", dist) : "");
-        int w = Math.max(96, Math.max(tr.getWidth(name), tr.getWidth(hpText)) + 16), h = 30;
+        String num = String.valueOf(Math.round(hp));
+        int w = Math.max(118, Math.max(tr.getWidth(name), tr.getWidth(hpText)) + 34 + 40), h = 34;
         int x = mc.getWindow().getScaledWidth() / 2 + 16, y = mc.getWindow().getScaledHeight() / 2 + 14;
         HudLayout.begin(c, "target", x, y, w, h);
-        Theme.card(c, x, y, w, h, 5, 0xE60B0B0E, Theme.BORDER);
-        c.drawTextWithShadow(tr, name, x + 8, y + 6, Theme.TEXT);
-        if (Modules.TARGET_HUD.b("Health text")) c.drawText(tr, hpText, x + 8, y + 17, Theme.TEXT_DIM, false);
-        int bx = x + 8, by = y + h - 6, bw = w - 16;
-        c.fill(bx, by, bx + bw, by + 2, 0xFF26262D);
-        int fw = (int) (bw * Math.min(1f, hp / max));
-        Theme.gradBar(c, bx, by, fw, 2, a1, a2, bw, 1f);
+        Theme.card(c, x, y, w, h, 6, 0xE00E1220, Theme.BORDER);
+
+        // head of the target
+        int hx = x + 5, hy = y + 5, hs = 24;
+        Theme.round(c, hx - 1, hy - 1, hs + 2, hs + 2, 5, Theme.alpha(0xFFFFFFFF, 0.14f));
+        if (le instanceof AbstractClientPlayerEntity ap) {
+            PlayerSkinDrawer.draw(c, ap.getSkinTextures(), hx, hy, hs);
+        } else if (le == null) {   // preview head
+            c.fill(hx, hy, hx + hs, hy + hs, 0xFFC99A7A);
+            c.fill(hx, hy, hx + hs, hy + 6, 0xFF5A3A24);
+            c.fill(hx + 5, hy + 10, hx + 10, hy + 14, 0xFFFFFFFF); c.fill(hx + 14, hy + 10, hx + 19, hy + 14, 0xFFFFFFFF);
+            c.fill(hx + 7, hy + 11, hx + 10, hy + 14, 0xFF3A4BA0); c.fill(hx + 16, hy + 11, hx + 19, hy + 14, 0xFF3A4BA0);
+        } else {                   // a mob: accent tile with its first letter
+            Theme.round(c, hx, hy, hs, hs, 5, Theme.alpha(Theme.mix(a1, a2, 0.5f), 0.9f));
+            String ltr = name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase(Locale.ROOT);
+            c.drawText(tr, ltr, hx + hs / 2 - tr.getWidth(ltr) / 2, hy + hs / 2 - 4, 0xFF0B0E16, false);
+        }
+
+        // name, optional health text, bar
+        int tx = x + 34;
+        c.drawTextWithShadow(tr, tr.trimToWidth(name, w - 34 - 38), tx, y + 6, Theme.TEXT);
+        if (Modules.TARGET_HUD.b("Health text")) c.drawText(tr, hpText, tx, y + 17, Theme.TEXT_DIM, false);
+        int bw = w - 34 - 38, by = y + h - 8;
+        Theme.round(c, tx, by, bw, 3, 1, 0xFF26262D);
+        int fw = Math.max(frac > 0f ? 2 : 0, (int) (bw * frac));
+        if (fw > 0) Theme.gradBar(c, tx, by, fw, 3, a1, a2, bw, 1f);
+
+        // health ring, always visible
+        int rcx = x + w - 20, rcy = y + h / 2;
+        int ring = Theme.mix(0xFFE5334B, 0xFF4ADE80, frac);
+        Theme.round(c, rcx - 12, rcy - 12, 24, 24, 12, Theme.alpha(ring, 0.95f));
+        Theme.round(c, rcx - 10, rcy - 10, 20, 20, 10, 0xFF0E1220);
+        c.drawText(tr, num, rcx - tr.getWidth(num) / 2, rcy - 4, Theme.TEXT, false);
         HudLayout.end(c);
     }
 

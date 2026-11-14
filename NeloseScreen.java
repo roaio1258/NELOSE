@@ -6,6 +6,7 @@ import org.lwjgl.glfw.GLFW;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -13,7 +14,12 @@ import java.util.List;
 import java.util.Map;
 
 public class NeloseScreen extends Screen {
-    private static final int W = 500, H = 292, SIDE = 112, ROW = 28, STEP = 32;
+    private static final int W = 500, H = 292, SIDE_FULL = 112, SIDE_MIN = 40, ROW = 28, STEP = 32;
+    private static boolean collapsed, searching;
+    private static String query = "";
+    private float sideW = SIDE_FULL;
+    private int side() { return Math.round(sideW); }
+    private void resetScroll() { scroll = scrollTarget = 0; }
     private static final int CH = 40, CSTEP = 48, GAPG = 8;     // module cards: height, row step, gap
     private static final int GDIM = 0xFFC9D0DC, GDARK = 0xFF141A28;   // glass theme: dim text, dark base
 
@@ -77,9 +83,10 @@ public class NeloseScreen extends Screen {
 
     /** Glass card; `on` tints it with the accent colour. */
     private static void glassCard(DrawContext c, int x, int y, int w, int h, int r, float hover, float on, int a1, float f) {
-        int tint = Theme.mix(0xFFFFFFFF, a1, 0.5f);
-        Theme.round(c, x, y, w, h, r, Theme.alpha(Theme.mix(0xFFFFFFFF, tint, on), f * (0.07f + 0.07f * hover + 0.06f * on)));
-        outline(c, x, y, w, h, r, Theme.alpha(Theme.mix(0xFFFFFFFF, a1, on * 0.7f), f * (0.20f + 0.12f * hover + 0.25f * on)));
+        int base = 0xFF090B13;
+        int fill = Theme.mix(base, Theme.mix(base, a1, 0.38f), on);
+        Theme.round(c, x, y, w, h, r, Theme.alpha(fill, f * (0.52f + 0.08f * hover + 0.14f * on)));
+        outline(c, x, y, w, h, r, Theme.alpha(Theme.mix(0xFFFFFFFF, a1, on * 0.8f), f * (0.11f + 0.10f * hover + 0.32f * on)));
     }
 
     private final Map<String, List<String>> WRAP = new HashMap<>();
@@ -227,22 +234,44 @@ public class NeloseScreen extends Screen {
     private static float ease(float t) { t = Math.max(0, Math.min(1, t)); return 1f - (1f - t) * (1f - t) * (1f - t); }
 
     // ---------- layout helpers ----------
-    private int cx() { return x + SIDE + 14; }
-    private int cw() { return W - SIDE - 28; }
+    private int cx() { return x + side() + 14; }
+    private int cw() { return W - side() - 28; }
     private int top() { return y + 50; }
     private int bottom() { return y + H - 12; }
     private int slide() { return (int) ((1f - tabFade) * 10); }
     private int rowY(int i) { return top() + i * STEP - (int) scroll + slide(); }
 
+    private boolean isGrid() { return !query.isEmpty() || (tab != Category.THEME && tab != Category.SETTINGS); }
+
+    /** Modules of the open tab, or every module that matches the search text. */
+    private List<Module> curMods() {
+        if (query.isEmpty()) return Modules.of(tab);
+        String q = query.toLowerCase(java.util.Locale.ROOT).trim();
+        List<Module> r = new ArrayList<>();
+        for (Module m : Modules.ALL) {
+            if (m.cat == Category.THEME || m.cat == Category.SETTINGS) continue;
+            if (m.name.toLowerCase(java.util.Locale.ROOT).contains(q) || m.desc.toLowerCase(java.util.Locale.ROOT).contains(q)) r.add(m);
+        }
+        return r;
+    }
+
     private int maxScroll() {
-        if (tab == Category.THEME || tab == Category.SETTINGS) return 0;
-        return Math.max(0, ((Modules.of(tab).size() + 1) / 2) * CSTEP - (bottom() - top()));
+        if (!isGrid()) return 0;
+        return Math.max(0, ((curMods().size() + 1) / 2) * CSTEP - (bottom() - top()));
+    }
+
+    private int btnY() { return y + H - 30; }
+
+    /** Bottom sidebar buttons: 0 search, 1 theme, 2 collapse. Only the collapse button stays when the bar is narrow. */
+    private int[] btnRect(int i) {
+        if (sideW >= 100f) return new int[]{x + 8 + i * 34, 28};
+        return i == 2 ? new int[]{x + (side() - 24) / 2, 24} : null;
     }
 
     /** Sidebar tab position: two groups (Modules, Client), animated between neighbours. */
     private int slotI(int i) {
         int g = Category.THEME.ordinal();
-        return i < g ? y + 94 + i * 24 : y + 208 + (i - g) * 24;
+        return i < g ? y + 86 + i * 24 : y + 196 + (i - g) * 24;
     }
 
     private int slotY(float pos) {
@@ -313,169 +342,45 @@ public class NeloseScreen extends Screen {
         glass(c, px, py, PW, ph, 8, pa, true);
         if (p.lift > 0.02f) outline(c, px, py, PW, ph, 8, Theme.alpha(a1, pa * p.lift));
 
-        // header
-        boolean hovHead = mx >= px && mx <= px + PW && my >= py && my <= py + PHEAD;
-        Theme.round(c, px + 1, py + 1, PW - 2, PHEAD - 2, 6, Theme.alpha(0xFFFFFFFF, pa * (hovHead || p.dragging ? 0.14f : 0.08f)));
-        c.drawTextWithShadow(textRenderer, p.m.name, px + 9, py + 8, Theme.alpha(Theme.TEXT, pa));
-        // grip dots
-        for (int i = 0; i < 3; i++) c.fill(px + PW - 36 + i * 4, py + 10, px + PW - 34 + i * 4, py + 12, Theme.alpha(GDIM, pa));
-        // close "x"
-        int xx = px + PW - 16, xy = py + 8;
-        boolean hovX = mx >= xx - 3 && mx <= xx + 9 && my >= xy - 3 && my <= xy + 9;
-        int xc = Theme.alpha(hovX ? 0xFFFFFFFF : GDIM, pa);
-        for (int i = 0; i < 7; i++) { c.fill(xx + i, xy + i, xx + i + 1, xy + i + 1, xc); c.fill(xx + 6 - i, xy + i, xx + 7 - i, xy + i + 1, xc); }
-        Theme.gradBar(c, px + 8, py + PHEAD - 1, PW - 16, 1, a1, a2, PW - 16, pa * 0.9f);
-
-        // settings
-        int ry = py + PHEAD + PPAD;
-        for (Setting s : p.m.settings) {
-            if (!p.m.visible(s)) continue;
-            if (s.isToggle) {
-                s.anim += ((s.on ? 1f : 0f) - s.anim) * 0.25f;
-                c.drawTextWithShadow(textRenderer, s.name, px + PPAD + 1, ry + 6, Theme.alpha(Theme.TEXT, pa));
-                int sx = px + PW - PPAD - 24, sy = ry + 5;
-                Theme.round(c, sx, sy, 24, 11, 5, Theme.alpha(Theme.mix(0xFF7A8396, a1, s.anim), pa * (0.55f + 0.45f * s.anim)));
-                Theme.round(c, sx + 2 + (int) (13 * s.anim), sy + 2, 7, 7, 3, Theme.alpha(0xFFFFFFFF, pa));
-            } else if (s.isMode) {
-                c.drawTextWithShadow(textRenderer, s.name, px + PPAD + 1, ry + 6, Theme.alpha(Theme.TEXT, pa));
-                String v = "< " + s.display() + " >";
-                c.drawText(textRenderer, v, px + PW - PPAD - textRenderer.getWidth(v), ry + 6, Theme.alpha(a1, pa), false);
-            } else {
-                c.drawTextWithShadow(textRenderer, s.name, px + PPAD + 1, ry + 2, Theme.alpha(Theme.TEXT, pa));
-                String v = s.display();
-                c.drawText(textRenderer, v, px + PW - PPAD - textRenderer.getWidth(v), ry + 2, Theme.alpha(a1, pa), false);
-                int tx = px + PPAD + 1, tw = PW - PPAD * 2 - 2, ty = ry + 16;
-                boolean act = activeSlider == s;
-                if (s.disp < 0f) s.disp = (float) s.fraction();
-                s.disp += ((float) s.fraction() - s.disp) * 0.3f;          // fill glides to the new value
-                s.knob += ((act ? 1f : 0f) - s.knob) * 0.25f;              // knob grows while you hold it
-                Theme.round(c, tx, ty, tw, 4, 2, Theme.alpha(Theme.mix(0x55FFFFFF, a1 & 0xFFFFFF | 0x55000000, s.knob * 0.4f), pa));
-                int fw = Math.max(3, (int) (tw * s.disp));
-                Theme.gradBar(c, tx, ty + 1, fw, 2, a1, a2, tw, pa);
-                if (s.knob > 0.02f) {                                       // soft glow around the knob
-                    for (int g = 3; g >= 1; g--) {
-                        int gr = 4 + g * 3;
-                        Theme.round(c, tx + fw - gr, ty + 2 - gr, gr * 2, gr * 2, gr, Theme.alpha(a1, pa * s.knob * 0.10f * (4 - g)));
-                    }
-                }
-                int kr = 4 + Math.round(2f * s.knob);
-                Theme.round(c, tx + fw - kr, ty + 2 - kr, kr * 2, kr * 2, kr, Theme.alpha(Theme.mix(0xFFFFFFFF, a2, 0.25f * s.knob), pa));
-            }
-            ry += rowH(s);
-        }
-        // bind rows
-        String bv = listening == p.m ? "press a key..." : "[" + Binds.keyName(p.m.key) + "]";
-        c.drawTextWithShadow(textRenderer, "Bind", px + PPAD + 1, ry + 6, Theme.alpha(Theme.TEXT, pa));
-        c.drawText(textRenderer, bv, px + PW - PPAD - textRenderer.getWidth(bv), ry + 6, Theme.alpha(listening == p.m ? 0xFFFFFFFF : a1, pa), false);
-        String bm = "< " + (p.m.bindMode == 0 ? "Toggle" : "Hold") + " >";
-        c.drawTextWithShadow(textRenderer, "Bind mode", px + PPAD + 1, ry + 26, Theme.alpha(Theme.TEXT, pa));
-        c.drawText(textRenderer, bm, px + PW - PPAD - textRenderer.getWidth(bm), ry + 26, Theme.alpha(a1, pa), false);
-    }
-
-    private boolean inPanel(Panel p, double mx, double my) {
-        return mx >= p.x && mx <= p.x + PW && my >= p.y && my <= p.y + panelH(p);
-    }
-
-    // ---------- render ----------
-    @Override
-    public void renderBackground(DrawContext c, int mx, int my, float d) {
-        if (Modules.BLUR.on) c.fill(0, 0, width, height, Theme.alpha(0xFF000000, Modules.BLUR.f("Dim") * fade()));
-        if (Modules.BLUR.b("GUI snow")) Snow.draw(c, width, height, 70, 0.8f * fade());
-    }
-
-    @Override
-    public void render(DrawContext c, int mx, int my, float delta) {
-        renderBackground(c, mx, my, delta);
-        float f = fade();
-        winDX = Math.max(-(width - W) / 2f, Math.min((width - W) / 2f, winDX));
-        winDY = Math.max(-(height - H) / 2f, Math.min((height - H) / 2f, winDY));
-        x = (width - W) / 2 + Math.round(winDX);
-        y = (height - H) / 2 + Math.round(winDY) + (int) ((1f - f) * (animMode() == 1 ? 30 : 12));
-        int a1 = Theme.accent(), a2 = Theme.accent2();
-
-        scrollTarget = Math.max(0, Math.min(maxScroll(), scrollTarget));
-        scroll += (scrollTarget - scroll) * 0.25f;
-        tabPos += (tab.ordinal() - tabPos) * 0.25f;
-        tabFade += (1f - tabFade) * 0.2f;
-
-        if (closeAt != 0 && closeProg() >= 1f) { super.close(); return; }
-
-        // settings menus are docked to the side of the GUI and slide out from behind it
-        for (Panel p : panels) {
-            if (!p.free) {
-                boolean right = x + W + 8 + PW <= width - 4;
-                p.tx = right ? x + W + 8 : x - PW - 8;
-                p.ty = Math.max(4, Math.min(height - panelH(p) - 4, y));
-            }
-            renderPanel(c, p, mx, my, a1, a2);
-        }
-        panels.removeIf(p -> p.closing && p.open < 0.02f);
-
-        // outlines of the movable HUD widgets
-        HudLayout.Item hovItem = dragHud != null ? dragHud : HudLayout.at(mx, my);
-        for (HudLayout.Item it : HudLayout.ITEMS.values()) {
-            if (!it.visible()) continue;
-            boolean hv = it == hovItem;
-            int ox = Math.round(it.left()), oy = Math.round(it.top());
-            int oc = Theme.alpha(hv ? a1 : 0xFFFFFFFF, f * (hv ? 0.9f : 0.28f));
-            c.fill(ox - 2, oy - 2, ox + it.w + 2, oy - 1, oc);
-            c.fill(ox - 2, oy + it.h + 1, ox + it.w + 2, oy + it.h + 2, oc);
-            c.fill(ox - 2, oy - 2, ox - 1, oy + it.h + 2, oc);
-            c.fill(ox + it.w + 1, oy - 2, ox + it.w + 2, oy + it.h + 2, oc);
-        }
-        String tip = "Drag the window and HUD widgets to move them · double click a widget to reset";
-        c.drawCenteredTextWithShadow(textRenderer, tip, width / 2, height - 12, Theme.alpha(GDIM, f * 0.8f));
-
-        glass(c, x, y, W, H, 10, f, false);
-        if (f > 0.7f) frost(c, x + 7, y + 7, W - 14, H - 14);
-        Theme.gradBar(c, x + 14, y + 2, W - 28, 1, a1, a2, W - 28, f * 0.8f);              // accent line on top
-        Theme.gradBar(c, x + 24, y + H - 2, W - 48, 1, a2, a1, W - 48, f * 0.3f);       // and a faint one below
-        c.fill(x + SIDE + 8, y + 40, x + W - 10, y + 41, Theme.alpha(0xFFFFFFFF, f * 0.05f));   // header divider
-
-        // sidebar
-        c.fill(x + SIDE, y + 12, x + SIDE + 1, y + H - 12, Theme.alpha(0xFFFFFFFF, f * 0.12f));
-        Avatar.draw(c, x + SIDE / 2, y + 34, 18, f);
-        int nw = textRenderer.getWidth("Nelose");
-        c.drawTextWithShadow(textRenderer, "Nelose", x + (SIDE - nw) / 2, y + 60, Theme.alpha(Theme.TEXT, f));
-        Theme.gradBar(c, x + (SIDE - nw) / 2, y + 71, nw, 1, a1, a2, nw, f);
-
-        // tabs on the side with a sliding highlight
-        int hy = slotY(tabPos);
-        Theme.round(c, x + 8, hy, SIDE - 16, 22, 6, Theme.alpha(0xFFFFFFFF, f * 0.14f));
-        outline(c, x + 8, hy, SIDE - 16, 22, 6, Theme.alpha(0xFFFFFFFF, f * 0.22f));
-        Theme.round(c, x + 8, hy + 6, 2, 10, 1, Theme.alpha(a1, f));
-        c.drawText(textRenderer, "Modules", x + 12, y + 82, Theme.alpha(GDIM, f * 0.65f), false);
-        c.drawText(textRenderer, "Client", x + 12, y + 196, Theme.alpha(GDIM, f * 0.65f), false);
-        for (Category cat : Category.values()) {
-            int ty = tabY(cat);
-            boolean sel = cat == tab;
-            boolean hov = mx >= x + 8 && mx <= x + SIDE - 8 && my >= ty && my <= ty + 22;
-            if (hov && !sel) Theme.round(c, x + 8, ty, SIDE - 16, 22, 6, Theme.alpha(0xFFFFFFFF, f * 0.07f));
-            c.drawTextWithShadow(textRenderer, cat.title, x + 20 + (sel ? 2 : 0), ty + 7,
-                Theme.alpha(sel ? Theme.TEXT : (hov ? 0xFFC8C8D2 : GDIM), f));
-        }
-        c.drawTextWithShadow(textRenderer, "v1.5 · 1.21.11", x + 14, y + H - 18, Theme.alpha(GDIM, f));
-
-        // header
+        // header: breadcrumb on the left, count or search box on the right
         int cx = cx(), cw = cw();
-        List<Module> mods = Modules.of(tab);
-        long en = mods.stream().filter(m -> m.on).count();
-        String cnt = tab == Category.SETTINGS ? "" : en + "/" + mods.size();
+        List<Module> mods = curMods();
+        boolean grid = isGrid();
         float hf = f * (0.4f + 0.6f * tabFade);
-        c.drawTextWithShadow(textRenderer, tab.title, cx, y + 14, Theme.alpha(Theme.TEXT, hf));
-        c.drawTextWithShadow(textRenderer, cnt, cx + cw - textRenderer.getWidth(cnt), y + 14, Theme.alpha(a1, hf));
-        c.drawTextWithShadow(textRenderer, tab.sub, cx, y + 27, Theme.alpha(GDIM, hf));
-        String hint = "Right click for settings";
-        c.drawText(textRenderer, hint, cx + cw - textRenderer.getWidth(hint), y + 27, Theme.alpha(GDIM, hf * 0.7f), false);
+        String group = !query.isEmpty() ? "Search" : (tab.ordinal() < Category.THEME.ordinal() ? "Modules" : "Client");
+        String crumb = group + " / ";
+        String curName = query.isEmpty() ? tab.title : "\"" + query + "\"";
+        c.drawTextWithShadow(textRenderer, crumb, cx, y + 14, Theme.alpha(GDIM, hf));
+        c.drawTextWithShadow(textRenderer, Text.literal(curName).formatted(Formatting.BOLD), cx + textRenderer.getWidth(crumb), y + 14, Theme.alpha(Theme.TEXT, hf));
+        String subTxt = query.isEmpty() ? tab.sub : mods.size() + (mods.size() == 1 ? " module found" : " modules found");
+        c.drawText(textRenderer, subTxt, cx, y + 27, Theme.alpha(GDIM, hf * 0.8f), false);
+        if (searching) {
+            int bw = 126, bx2 = cx + cw - bw, by = y + 9;
+            glassCard(c, bx2, by, bw, 20, 6, 0f, 1f, a1, f);
+            boolean caret = (System.currentTimeMillis() / 500) % 2 == 0;
+            String shown = query.isEmpty() ? "Type to search..." : textRenderer.trimToWidth(query, bw - 24) + (caret ? "_" : "");
+            c.drawText(textRenderer, shown, bx2 + 8, by + 6, Theme.alpha(query.isEmpty() ? GDIM : Theme.TEXT, f), false);
+        } else if (grid) {
+            long en = mods.stream().filter(m -> m.on).count();
+            String cnt = en + "/" + mods.size();
+            int tw = textRenderer.getWidth(cnt) + 14;
+            Theme.round(c, cx + cw - tw, y + 12, tw, 16, 8, Theme.alpha(a1, hf * 0.18f));
+            outline(c, cx + cw - tw, y + 12, tw, 16, 8, Theme.alpha(a1, hf * 0.5f));
+            c.drawText(textRenderer, cnt, cx + cw - tw + 7, y + 16, Theme.alpha(Theme.TEXT, hf), false);
+        }
 
         float rf = f * tabFade;
         int top = top(), bottom = bottom();
         c.enableScissor(cx - 2, top - 1, cx + cw + 2, bottom);
-        if (tab == Category.THEME) {
+        if (!grid && tab == Category.THEME) {
             renderTheme(c, mx, my, rf, a1, a2);
-        } else if (tab == Category.SETTINGS) {
+        } else if (!grid && tab == Category.SETTINGS) {
             renderSettings(c, mx, my, rf, a1);
         } else {
+            if (mods.isEmpty()) {
+                String none = "No modules found";
+                c.drawCenteredTextWithShadow(textRenderer, none, cx + cw / 2, top + 30, Theme.alpha(GDIM, rf));
+            }
             int gw = gridW(cw - (maxScroll() > 0 ? 8 : 0));
             for (int i = 0; i < mods.size(); i++) {
                 int ry = gridY(i);
@@ -502,7 +407,7 @@ public class NeloseScreen extends Screen {
     }
 
     private boolean onGear(Module m, int rx, int rw, double mx) {
-        return mx >= rx + rw - 9 - 26 - 22 && mx <= rx + rw - 9 - 26 - 3;
+        return !m.settings.isEmpty() && mx >= rx + rw - 9 - 26 - 22 && mx <= rx + rw - 9 - 26 - 3;
     }
 
     /** Module card in the two-column grid: name and toggle on top, wrapped description below. */
@@ -510,10 +415,11 @@ public class NeloseScreen extends Screen {
         boolean hov = mx >= rx && mx <= rx + rw && my >= ry && my <= ry + CH && my >= top() && my <= bottom();
         m.anim += ((m.on ? 1f : 0f) - m.anim) * 0.22f;
         glassCard(c, rx, ry, rw, CH, 5, hov ? 1f : 0f, m.anim, a1, f);
-        c.drawTextWithShadow(textRenderer, m.name, rx + 9, ry + 6, Theme.alpha(Theme.TEXT, f));
+        Text title = Text.literal(m.name).formatted(Formatting.BOLD);
+        c.drawTextWithShadow(textRenderer, title, rx + 9, ry + 6, Theme.alpha(Theme.TEXT, f));
         if (m.key >= 0) {
             String kn = "[" + Binds.keyName(m.key) + "]";
-            c.drawText(textRenderer, kn, rx + 14 + textRenderer.getWidth(m.name), ry + 6, Theme.alpha(a1, f), false);
+            c.drawText(textRenderer, kn, rx + 14 + textRenderer.getWidth(title), ry + 6, Theme.alpha(a1, f), false);
         }
         List<String> lines = WRAP.computeIfAbsent(m.name + "|" + rw, k -> wrap(m.desc, rw - 18, 2));
         for (int k = 0; k < lines.size(); k++)
@@ -525,8 +431,14 @@ public class NeloseScreen extends Screen {
         boolean gh = onGear(m, rx, rw, mx) && my >= ry && my <= ry + CH;
         boolean opened = p != null && !p.closing;
         int gc = Theme.alpha(opened ? a1 : (gh ? 0xFFFFFFFF : GDIM), f);
-        int gx = sx - 14, gy = ry + 6;
-        for (int i = 0; i < 3; i++) c.fill(gx, gy + i * 4, gx + 3, gy + i * 4 + 2, gc);
+        if (!m.settings.isEmpty()) chevron(c, sx - 18, ry + 5, opened, gh, gc, a1, f);
+    }
+
+    /** Small rounded button with an arrow: opens the settings menu of a module. */
+    private void chevron(DrawContext c, int gx, int gy, boolean opened, boolean hov, int col, int a1, float f) {
+        Theme.round(c, gx, gy, 14, 14, 4, Theme.alpha(opened ? a1 : 0xFFFFFFFF, f * (opened ? 0.25f : (hov ? 0.16f : 0.07f))));
+        String ch = opened ? "v" : ">";
+        c.drawText(textRenderer, ch, gx + 7 - textRenderer.getWidth(ch) / 2, gy + 3, col, false);
     }
 
     private void row(DrawContext c, Module m, int rx, int ry, int rw, int mx, int my, float f, int a1) {
@@ -549,8 +461,7 @@ public class NeloseScreen extends Screen {
             boolean gh = onGear(m, rx, rw, mx) && my >= ry && my <= ry + ROW;
             boolean opened = p != null && !p.closing;
             int gc = Theme.alpha(opened ? a1 : (gh ? 0xFFFFFFFF : GDIM), f);
-            int gx = sx - 14, gy = ry + ROW / 2 - 5;
-            for (int i = 0; i < 3; i++) c.fill(gx, gy + i * 4, gx + 3, gy + i * 4 + 2, gc);
+            if (!m.settings.isEmpty()) chevron(c, sx - 18, ry + ROW / 2 - 7, opened, gh, gc, a1, f);
         }
     }
 
@@ -614,7 +525,24 @@ public class NeloseScreen extends Screen {
             listening = null;
             return true;
         }
-        if (input.key() == GLFW.GLFW_KEY_RIGHT_SHIFT) { close(); return true; }
+        int key = input.key();
+        if (key == GLFW.GLFW_KEY_RIGHT_SHIFT) { close(); return true; }
+        if (searching) {
+            if (key == GLFW.GLFW_KEY_ESCAPE) { searching = false; query = ""; resetScroll(); return true; }
+            if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) { searching = false; return true; }
+            if (key == GLFW.GLFW_KEY_BACKSPACE) {
+                if (!query.isEmpty()) { query = query.substring(0, query.length() - 1); resetScroll(); }
+                return true;
+            }
+            if (query.length() < 20) {
+                if (key >= GLFW.GLFW_KEY_A && key <= GLFW.GLFW_KEY_Z) { query += (char) ('a' + (key - GLFW.GLFW_KEY_A)); resetScroll(); }
+                else if (key >= GLFW.GLFW_KEY_0 && key <= GLFW.GLFW_KEY_9) { query += (char) ('0' + (key - GLFW.GLFW_KEY_0)); resetScroll(); }
+                else if (key == GLFW.GLFW_KEY_SPACE && !query.isEmpty()) query += ' ';
+            }
+            return true;
+        }
+        if (key == GLFW.GLFW_KEY_ESCAPE && !query.isEmpty()) { query = ""; resetScroll(); return true; }
+        if (key == GLFW.GLFW_KEY_SLASH) { searching = true; return true; }
         return super.keyPressed(input);
     }
 
@@ -673,7 +601,7 @@ public class NeloseScreen extends Screen {
 
         // drag the main window by its header / logo area
         boolean inWin = mx >= x && mx <= x + W && my >= y && my <= y + H;
-        if (btn == 0 && inWin && (my <= y + 40 || (mx <= x + SIDE && my <= y + 78))) {
+        if (btn == 0 && inWin && (my <= y + 40 || (mx <= x + side() && my <= y + 78))) {
             dragWin = true; winGX = mx - x; winGY = my - y;
             return true;
         }
@@ -687,12 +615,25 @@ public class NeloseScreen extends Screen {
             }
         }
 
+        // sidebar buttons: search, theme, collapse
+        if (btn == 0) {
+            for (int i = 0; i < 3; i++) {
+                int[] r = btnRect(i);
+                if (r != null && mx >= r[0] && mx <= r[0] + r[1] && my >= btnY() && my <= btnY() + 20) {
+                    if (i == 0) { searching = !searching; if (!searching) query = ""; resetScroll(); }
+                    else if (i == 1) { tab = Category.THEME; query = ""; searching = false; resetScroll(); tabFade = 0f; }
+                    else collapsed = !collapsed;
+                    return true;
+                }
+            }
+        }
+
         // sidebar tabs
         if (btn == 0) {
             for (Category cat : Category.values()) {
                 int ty = tabY(cat);
-                if (mx >= x + 8 && mx <= x + SIDE - 8 && my >= ty && my <= ty + 22) {
-                    if (cat != tab) { tab = cat; scroll = scrollTarget = 0; tabFade = 0f; }
+                if (mx >= x + 8 && mx <= x + side() - 8 && my >= ty && my <= ty + 22) {
+                    if (cat != tab || !query.isEmpty() || searching) { tab = cat; query = ""; searching = false; resetScroll(); tabFade = 0f; }
                     return true;
                 }
             }
@@ -700,7 +641,7 @@ public class NeloseScreen extends Screen {
 
         // module rows
         int cx = cx(), cw = cw();
-        if (tab == Category.SETTINGS) {
+        if (!isGrid() && tab == Category.SETTINGS) {
             int top = top() + slide();
             if (btn == 0) {
                 int n = MODEL_NAMES.length, gw = (cw - SG * (n - 1)) / n;
@@ -717,7 +658,7 @@ public class NeloseScreen extends Screen {
                 else if (btn == 0) Modules.LOGO.on = !Modules.LOGO.on;
                 return true;
             }
-        } else if (tab == Category.THEME) {
+        } else if (!isGrid() && tab == Category.THEME) {
             int top = top() + slide();
             if (btn == 0) {
                 int cols = 3, gw = (cw - SG * (cols - 1)) / cols;
@@ -733,7 +674,7 @@ public class NeloseScreen extends Screen {
                 return true;
             }
         } else if (my >= top() && my <= bottom()) {
-            List<Module> mods = Modules.of(tab);
+            List<Module> mods = curMods();
             int rw = cw - (maxScroll() > 0 ? 8 : 0);
             int gw = gridW(rw);
             for (int i = 0; i < mods.size(); i++) {
