@@ -230,7 +230,7 @@ public final class Hud {
         int hx = x + 5, hy = y + 5, hs = 24;
         Theme.round(c, hx - 1, hy - 1, hs + 2, hs + 2, 5, Theme.alpha(0xFFFFFFFF, 0.14f));
         if (le instanceof AbstractClientPlayerEntity ap) {
-            PlayerSkinDrawer.draw(c, ap.getSkinTextures(), hx, hy, hs);
+            PlayerSkinDrawer.draw(c, ap.getSkin(), hx, hy, hs);
         } else if (le == null) {   // preview head
             c.fill(hx, hy, hx + hs, hy + hs, 0xFFC99A7A);
             c.fill(hx, hy, hx + hs, hy + 6, 0xFF5A3A24);
